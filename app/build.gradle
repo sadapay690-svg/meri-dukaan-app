@@ -1,0 +1,83 @@
+plugins {
+    id 'com.android.application'
+}
+
+/* Release signing comes from environment variables so that nothing secret
+   ever sits in the repo. If they are missing, only the debug APK is built. */
+def ksPath  = System.getenv("MD_KS_PATH")
+def ksPass  = System.getenv("MD_KS_PASS")
+def ksAlias = System.getenv("MD_KEY_ALIAS")
+def keyPass = System.getenv("MD_KEY_PASS")
+def signOk  = ksPath != null && ksPath.trim() && file(ksPath).exists()
+
+android {
+    namespace 'com.bithub.meridukaan'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.bithub.meridukaan"
+        minSdk 23
+        targetSdk 34
+        versionCode ((System.getenv("MD_VC") ?: "1") as int)
+        versionName (System.getenv("MD_VN") ?: "1.0")
+        resConfigs "en"
+    }
+
+    signingConfigs {
+        if (signOk) {
+            create("release") {
+                storeFile file(ksPath)
+                storePassword ksPass
+                keyAlias ksAlias
+                keyPassword keyPass
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+            if (signOk) {
+                signingConfig signingConfigs.getByName("release")
+            }
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                          'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/*.kotlin_module']
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+}
+
+/* The app itself is ONE html file kept at the repo root.
+   Copy it into assets before every build so there is only one file to update. */
+tasks.register('copyApp', Copy) {
+    from file("$rootDir/dukaan-app.html")
+    into file("$projectDir/src/main/assets")
+    rename { 'index.html' }
+}
+
+tasks.named('preBuild') {
+    dependsOn tasks.named('copyApp')
+}

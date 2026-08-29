@@ -1,0 +1,60 @@
+name: APK banao
+
+# Har baar jab aap file upload/change karein, GitHub khud APK bana dega.
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code lo
+        uses: actions/checkout@v4
+
+      - name: Java 17 lagao
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle lagao
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Sirf ek HTML file honi chahiye
+        run: |
+          test -f dukaan-app.html || { echo "dukaan-app.html repo ki jar (root) mein nahi hai"; exit 1; }
+          ls -l dukaan-app.html
+
+      - name: APK banao (debug)
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Naam theek karo
+        id: name
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk "out/MeriDukaan-v${{ github.run_number }}.apk"
+          echo "apk=out/MeriDukaan-v${{ github.run_number }}.apk" >> "$GITHUB_OUTPUT"
+          ls -l out
+
+      - name: APK sambhaal ke rakho
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeriDukaan-APK
+          path: out/*.apk
+          if-no-files-found: error
+
+      - name: Phone par download karne ke liye link banao
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk --yes --cleanup-tag || true
+          gh release create apk "${{ steps.name.outputs.apk }}" \
+            --title "Meri Dukaan — taaza APK (build ${{ github.run_number }})" \
+            --notes "Phone par ye APK download kar ke install karein. Purana data mehfooz rehta hai."

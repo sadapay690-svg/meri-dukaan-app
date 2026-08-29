@@ -1,0 +1,64 @@
+name: Play Store ke liye (signed)
+
+# Ye sirf tab chalta hai jab aap khud "Run workflow" dabayein.
+# Pehle 4 secrets add karna zaroori hai (README ka Step 7 dekhein):
+#   KEYSTORE_B64, KS_PASS, KEY_ALIAS, KEY_PASS
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version (jaise 1.0)'
+        required: true
+        default: '1.0'
+      version_code:
+        description: 'Version number (har baar barhana zaroori: 1, 2, 3...)'
+        required: true
+        default: '1'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Keystore wapis banao
+        run: |
+          if [ -z "${{ secrets.KEYSTORE_B64 }}" ]; then
+            echo "KEYSTORE_B64 secret nahi mila — README Step 7 dekhein"; exit 1;
+          fi
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/md.jks"
+          ls -l "$RUNNER_TEMP/md.jks"
+
+      - name: AAB + APK banao
+        env:
+          MD_KS_PATH: ${{ runner.temp }}/md.jks
+          MD_KS_PASS: ${{ secrets.KS_PASS }}
+          MD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          MD_KEY_PASS: ${{ secrets.KEY_PASS }}
+          MD_VN: ${{ github.event.inputs.version_name }}
+          MD_VC: ${{ github.event.inputs.version_code }}
+        run: gradle bundleRelease assembleRelease --no-daemon --stacktrace
+
+      - name: Naam theek karo
+        run: |
+          mkdir -p out
+          cp app/build/outputs/bundle/release/app-release.aab \
+             "out/MeriDukaan-${{ github.event.inputs.version_name }}.aab"
+          cp app/build/outputs/apk/release/app-release.apk \
+             "out/MeriDukaan-${{ github.event.inputs.version_name }}.apk"
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MeriDukaan-Release
+          path: out/*
+          if-no-files-found: error

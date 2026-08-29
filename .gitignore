@@ -1,0 +1,18 @@
+# Android / Gradle
+.gradle/
+build/
+app/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.iml
+.idea/
+
+# ye file build ke waqt khud ban jati hai (dukaan-app.html se copy hoti hai)
+app/src/main/assets/index.html
+
+# keystore GALTI se bhi upload na ho
+*.jks
+*.keystore
+keystore-base64.txt
