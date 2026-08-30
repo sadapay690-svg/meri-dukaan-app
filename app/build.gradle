@@ -88,6 +88,22 @@ android {
     }
 }
 
+/* ---- Kotlin library ka jhagra khatam ----
+   ML Kit purani `kotlin-stdlib-jdk8:1.6.21` khinchti hai, CameraX/androidx nayi
+   `kotlin-stdlib:1.8.22`. Kotlin 1.8 se jdk7/jdk8 wali classes seedhi
+   kotlin-stdlib ke andar aa gayi hain, is liye dono ek saath rakhne par
+   `checkDebugDuplicateClasses` "Duplicate class kotlin.*" de kar build tod deta
+   hai. Teeno ko 1.8.22 par majboor karne se purani jar sirf ek khali shim reh
+   jati hai aur duplicate khatam. */
+configurations.configureEach {
+    resolutionStrategy {
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.8.22'
+    }
+}
+
 dependencies {
     implementation 'androidx.webkit:webkit:1.11.0'
 
