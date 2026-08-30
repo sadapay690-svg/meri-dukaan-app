@@ -51,6 +51,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Barcode scanner (ML Kit). Sirf app ke andar se khulta hai. -->
+        <activity
+            android:name=".ScanActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/ScanTheme" />
     </application>
 
 </manifest>

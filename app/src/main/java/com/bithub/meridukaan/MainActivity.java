@@ -52,6 +52,7 @@ public class MainActivity extends Activity {
   private static final int REQ_CAM = 11;
   private static final int REQ_FILE = 12;
   private static final int REQ_STORE = 13;
+  private static final int REQ_SCAN = 14;
 
   private WebView web;
   private WebViewAssetLoader loader;
@@ -194,6 +195,8 @@ public class MainActivity extends Activity {
       return true;
     }
 
+    /* Note: the page now draws its own in-app dialogs (ask/askText), so this
+       almost never fires. It stays as a safety net for any stray confirm(). */
     @Override
     public boolean onJsConfirm(WebView v, String url, String msg,
                                final android.webkit.JsResult res) {
@@ -261,6 +264,33 @@ public class MainActivity extends Activity {
         public void run() { toast(msg); }
       });
     }
+
+    /** openScan() -> ML Kit scanner screen (WebView has no BarcodeDetector). */
+    @JavascriptInterface
+    public void scanBarcode() {
+      runOnUiThread(new Runnable() {
+        public void run() {
+          try {
+            startActivityForResult(new Intent(MainActivity.this, ScanActivity.class), REQ_SCAN);
+          } catch (Exception e) {
+            sendCode("");
+          }
+        }
+      });
+    }
+    /** "App Band Karein" — WebView mein window.close() kaam nahi karta. */
+    @JavascriptInterface
+    public void exitApp() {
+      runOnUiThread(new Runnable() {
+        public void run() { finish(); }
+      });
+    }
+  }
+
+  /** Hand the scanned barcode back to the page (empty string = type it by hand). */
+  private void sendCode(String code) {
+    String js = "window.__aScanDone&&__aScanDone(" + org.json.JSONObject.quote(code) + ")";
+    web.evaluateJavascript(js, null);
   }
 
   private void doPrint() {
@@ -365,6 +395,13 @@ public class MainActivity extends Activity {
 
   @Override
   protected void onActivityResult(int code, int result, Intent data) {
+    if (code == REQ_SCAN) {
+      if (result == RESULT_OK && data != null) {
+        String bc = data.getStringExtra(ScanActivity.EXTRA_CODE);
+        sendCode(bc == null ? "" : bc);
+      }
+      return;
+    }
     if (code == REQ_FILE) {
       Uri[] out = null;
       if (result == RESULT_OK && data != null && data.getData() != null) {
@@ -427,10 +464,28 @@ public class MainActivity extends Activity {
     + "  return oc.apply(this,arguments);"
     + "};"
     + "window.__aBack=function(){try{"
+    + "  if(window.__aDlg&&__aDlg())return true;"
     + "  var o=document.getElementById('ov');"
     + "  if(o&&o.classList&&o.classList.contains('open')){closeSheet();return true;}"
+    + "  var sy=document.getElementById('syncScr');"
+    + "  if(sy&&!sy.hidden&&typeof closeSync==='function'){closeSync();return true;}"
     + "  var h=document.getElementById('v-home');"
     + "  if(h&&h.hidden&&typeof go==='function'){go('home');return true;}"
     + "}catch(e){}return false;};"
+    /* 4. Urdu Nastaliq font — APK ke andar hai, phone mein nahi hota */
+    + "try{var fs=document.createElement('style');"
+    + "fs.textContent='@font-face{font-family:Noto Nastaliq Urdu;font-style:normal;"
+    + "font-weight:400 700;font-display:swap;src:url(/assets/fonts/NotoNastaliqUrdu.ttf)}';"
+    + "document.head.appendChild(fs);}catch(e){}"
+    /* 5. Barcode scan — WebView mein BarcodeDetector nahi, native ML Kit chalao */
+    + "window.__aScanFrom='sale';"
+    + "window.__aScanDone=function(c){try{"
+    + "  var f=window.__aScanFrom||'sale';"
+    + "  if(c&&String(c).trim()){useCode(String(c).trim(),f);}else{openScanManual('');}"
+    + "}catch(e){}};"
+    + "if(typeof openScan==='function'){window.openScan=function(f){"
+    + "  window.__aScanFrom=f||'sale';"
+    + "  try{AND.scanBarcode();}catch(e){openScanManual('');}"
+    + "};}"
     + "})();";
 }

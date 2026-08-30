@@ -32,6 +32,20 @@ jobs:
           test -f dukaan-app.html || { echo "dukaan-app.html repo ki jar (root) mein nahi hai"; exit 1; }
           ls -l dukaan-app.html
 
+      - name: Urdu Nastaliq font laao
+        continue-on-error: true
+        run: |
+          mkdir -p app/src/main/assets/fonts
+          F=app/src/main/assets/fonts/NotoNastaliqUrdu.ttf
+          for U in \
+            "https://raw.githubusercontent.com/google/fonts/main/ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf" \
+            "https://raw.githubusercontent.com/google/fonts/main/ofl/notonastaliqurdu/NotoNastaliqUrdu-Regular.ttf" \
+            "https://github.com/notofonts/nastaliq/raw/main/fonts/NotoNastaliqUrdu/hinted/ttf/NotoNastaliqUrdu-Regular.ttf" ; do
+            echo "koshish: $U"
+            if curl -fsSL "$U" -o "$F" && [ -s "$F" ]; then echo "MIL GAYA"; break; fi
+          done
+          ls -l app/src/main/assets/fonts/ || echo "FONT NAHI MILA — app phir bhi chalegi"
+
       - name: APK banao (debug)
         run: gradle assembleDebug --no-daemon --stacktrace
 
@@ -41,7 +55,8 @@ jobs:
           mkdir -p out
           cp app/build/outputs/apk/debug/app-debug.apk "out/MeriDukaan-v${{ github.run_number }}.apk"
           echo "apk=out/MeriDukaan-v${{ github.run_number }}.apk" >> "$GITHUB_OUTPUT"
-          ls -l out
+          ls -lh out
+          du -h out/*.apk
 
       - name: APK sambhaal ke rakho
         uses: actions/upload-artifact@v4

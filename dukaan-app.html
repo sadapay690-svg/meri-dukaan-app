@@ -38,6 +38,12 @@ body{font-family:"Segoe UI",Roboto,system-ui,-apple-system,sans-serif;background
 .greet{font-size:13.5px;color:var(--mut)}
 .store{font-size:22px;font-weight:800;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ibtn{width:42px;height:42px;border:none;border-radius:11px;background:var(--soft);color:var(--ink);font-size:18px;cursor:pointer;display:grid;place-items:center;flex-shrink:0}
+/* header ka cloud batti — har save par khud badalti hai */
+.ibtn.sdot{font-size:16px}
+.ibtn.sdot.busy{animation:syspin 1s linear infinite}
+.ibtn.sdot.ok{background:var(--gl)}
+.ibtn.sdot.wait{background:var(--ol,var(--soft))}
+.ibtn.sdot.off{opacity:.55}
 .ibtn:active{transform:scale(.94)}
 .ph{padding:14px 16px 16px}
 .ph h2{font-size:23px;font-weight:800;letter-spacing:-.3px}
@@ -173,6 +179,20 @@ input::placeholder{color:var(--mut);opacity:.75}
 .card-in h4{font-size:12.5px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px}
 .toast{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:11px 20px;border-radius:24px;font-size:14px;font-weight:600;z-index:9900;opacity:0;transition:.25s;pointer-events:none;max-width:88%;text-align:center}
 .toast.show{opacity:1}
+/* ---------- app ka apna dialog (browser ka safaid popup band) ---------- */
+.dov{position:fixed;inset:0;background:rgba(9,15,28,.62);z-index:9880;display:none;align-items:center;justify-content:center;padding:22px}
+.dov.open{display:flex}
+.dbox{background:var(--card);color:var(--ink);width:100%;max-width:355px;border-radius:20px;box-shadow:0 18px 50px rgba(0,0,0,.42);overflow:hidden;animation:pop .17s ease}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+.dbox .dh{display:flex;align-items:center;gap:8px;padding:17px 18px 0;font-size:16.5px;font-weight:900}
+.dbox .dm{padding:9px 18px 3px;font-size:14px;line-height:1.72;color:var(--ink)}
+.dbox .dsub{padding:4px 18px 0;font-size:12px;color:var(--mut);line-height:1.6}
+.dbox .din{margin:13px 18px 0;width:calc(100% - 36px)}
+.dbox .dbtns{display:flex;gap:9px;padding:16px 18px 18px}
+.dbox .dbtns button{flex:1;padding:12px 8px;border:none;border-radius:13px;font-family:inherit;font-size:14.5px;font-weight:800;cursor:pointer}
+.dbox .dbtns .dno{background:var(--soft);color:var(--mut)}
+.dbox .dbtns .dok{background:var(--g);color:#fff}
+.dbox .dbtns .dok.r{background:var(--r)}
 .hero{border-radius:15px;padding:16px;text-align:center;margin-bottom:14px}
 .hero.r{background:var(--rl)} .hero.g{background:var(--gl)} .hero.n{background:var(--soft)}
 .hero .hl{font-size:12.5px;color:var(--mut);font-weight:700}
@@ -483,6 +503,7 @@ input.good{border-color:var(--g)}
         <div class="greet">Assalam o Alaikum 👋</div>
         <div class="store" id="storeName">Meri Dukaan</div>
       </div>
+      <button class="ibtn sdot off" onclick="openCloud()" id="syncDot" title="Cloud backup">☁️</button>
       <button class="ibtn" onclick="toggleTheme()" id="themeBtn" title="Dark mode">🌙</button>
       <button class="ibtn" onclick="openSettings()" title="Settings">⚙️</button>
     </div>
@@ -646,6 +667,7 @@ input.good{border-color:var(--g)}
 <div id="admScr" hidden></div>
 <div id="authScr" hidden></div>
 <div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
+<div class="dov" id="dov"><div class="dbox" id="dbox"></div></div>
 <div class="toast" id="toast"></div>
 <div id="printArea"></div>
 
@@ -806,7 +828,8 @@ function syncWatchOn(){
   try{window.addEventListener("online",function(){try{if(pendOn())toast("\ud83c\udf10 Net wapis \u2014 baqi data upload ho raha hai");}catch(e){}setTimeout(syncTry,900);});}catch(e){}
   try{document.addEventListener("visibilitychange",function(){if(!document.hidden)setTimeout(syncTry,700);});}catch(e){}
   try{window.addEventListener("focus",function(){setTimeout(syncTry,700);});}catch(e){}
-  try{setInterval(syncTry,45000);}catch(e){}
+  try{setInterval(syncTry,20000);}catch(e){}
+  try{setInterval(()=>{try{syncDot();}catch(e){}},8000);}catch(e){}
 }
 /* ================= CLOUD BACKUP (Firebase) =================
    Asal data localStorage mein hi rehta hai (offline-first). Cloud sirf
@@ -834,12 +857,28 @@ function cloudPack(){
     shop:(db.settings.shopName||"Dukaan"),ver:(adm().brand.ver||""),
     dev:(navigator.userAgent||"").slice(0,90)};
 }
+/* header ki chhoti cloud batti — har save par khud badalti hai, taake
+   dukaandar ko nazar aaye ke data online ja raha hai (tap = Cloud screen) */
+function syncDot(){
+  const e=$("syncDot");if(!e)return;
+  let ic="☁️",k="off",tip="Cloud backup — tap karein";
+  if(cloudBusy){ic="🔄";k="busy";tip="Data online bheja ja raha hai…";}
+  else if(!cloudSDK()){ic="📴";tip="Internet nahi mila — data phone mein mehfooz hai";}
+  else if(!cloudOn()){tip="Cloud login baqi hai — tap karein";}
+  else if(db.settings&&db.settings.demo){ic="🧪";k="wait";tip="Demo data chal raha hai — upload band hai";}
+  else if(!mineNow()){ic="🔐";k="wait";tip="Auto upload band — tap kar ke wajah dekhein";}
+  else if(db.settings.dirty||!cloudAt()){ic="⏳";k="wait";tip="Upload baqi hai — khud ho jayega";}
+  else{ic="✅";k="ok";tip="Sab online mehfooz — "+ago(cloudAt());}
+  e.textContent=ic;e.className="ibtn sdot "+k;e.title=tip;
+}
 function cloudMark(){
+  try{syncDot();}catch(e){}
   if(!cloudOn()||!cloudAuto())return;
   clearTimeout(cloudTmr);
-  cloudTmr=setTimeout(()=>cloudPush(0),5000);
+  cloudTmr=setTimeout(()=>cloudPush(0),1500);
 }
 function cloudBadge(){
+  try{syncDot();}catch(e){}
   const e=$("stCloud");if(!e)return;
   e.textContent=!cloudSDK()?"Net nahi mila \u2014 sirf is phone mein"
     :cloudOn()?(cloudMail()+" \u00b7 "+(cloudAt()?("last "+dtShort(cloudAt())):"upload baqi"))
@@ -860,12 +899,12 @@ async function pushSafe(){
   bkSafe("Is phone ka data (upload se pehle)");
   bkDoc(o,"Cloud ka data (doosre phone se)");
   const n=o.n||{},m=cloudCounts();
-  if(confirm("\u2601\ufe0f Cloud par is phone se NAYA data mojood hai (kisi doosre phone se aaya).\n\n"
-    +"Cloud: "+(n.p||0)+" product, "+(n.s||0)+" sale\n"
+  if(await ask("Cloud: "+(n.p||0)+" product, "+(n.s||0)+" sale\n"
     +"Ye phone: "+m.p+" product, "+m.s+" sale\n\n"
-    +"OK = Cloud wala data yahan le aayein\n"
-    +"Cancel = Is phone ka data upload karein\n\n"
-    +"(Dono ki copy phone ke Backup mein mehfooz kar di gayi hai \u2014 Sync \u2192 Data Bachao)")){
+    +"Kaun sa data rakhna hai?",
+    {title:"Cloud par naya data hai",icon:"\u2601\ufe0f",
+     ok:"Cloud wala lein",no:"Is phone ka bhejein",
+     note:"Doosre phone se aaya hai. Dono ki copy phone mein mehfooz kar di gayi hai \u2014 Sync \u2192 Data Bachao"})){
     cloudApply(o,0,1);return 0;}
   return 1;
 }
@@ -874,6 +913,7 @@ async function cloudPush(manual){
   if(cloudBusy){if(manual)toast("Ruk jaayein\u2026 chal raha hai");return 0;}
   if(!manual&&(cloudHold||!mineNow()))return 0;   /* khud-bakhud sirf apne hi account me */
   cloudBusy=1;clearTimeout(cloudTmr);
+  try{syncDot();}catch(e){}
   if(manual)toast("\u2601\ufe0f Upload ho raha hai\u2026");
   try{
     if(!await pushSafe())return 0;
@@ -887,7 +927,7 @@ async function cloudPush(manual){
     cloudErr=String(e&&(e.code||e.message)||e);
     if(manual){beep(0);toast("Upload nahi hua: "+cloudErr);}
     return 0;
-  }finally{cloudBusy=0;}
+  }finally{cloudBusy=0;try{syncDot();}catch(e){}}
 }
 function docEmpty(o){
   try{
@@ -1309,10 +1349,11 @@ async function cloudFetchLogin(mail,pass){
     cjEnd(0,"Online mehfooz hisaab kisi doosre email ka hai — is liye kholna band kar diya. "
       +"Apna wohi email likhein jis se account banaya tha.");
     return {err:"Ye online hisaab is email ka nahi hai — apna wohi email likhein jis se account banaya tha",shown:1};}
-  if(!cloudEmpty()&&!confirm("Is phone mein pehle se kuch hisaab mojood hai.\n\nCloud wala hisaab lagane se is phone ka purana hisaab mit jayega.\n\nAage barhein?")){
+  if(!cloudEmpty()&&!await ask("Cloud wala hisaab lagane se is phone ka purana hisaab mit jayega.\n\nAage barhein?",
+    {title:"Is phone mein pehle se hisaab hai",danger:true,ok:"Haan, aage barhein",no:"Rehne dein"})){
     cloudHold=1;   /* faisla hone tak khud-bakhud upload band — doosre ka backup na mite */
     cjSet(2,"bad","Aap ne mana kar diya — is phone ka purana hisaab waise hi hai");
-    cjEnd(0,"Pehle is phone ka data Settings → Cloud Backup se upload karein, ya dobara login kar ke <b>OK</b> dabayein.");
+    cjEnd(0,"Pehle is phone ka data Settings → Cloud Backup se upload karein, ya dobara login kar ke <b>Haan</b> dabayein.");
     return {err:"Ruk gaya — pehle Cloud Backup se apna data upload kar lein",shown:1};}
   if(!cloudApply(o,1,1)){
     cjSet(2,"bad","Backup kharab hai — apply nahi hua");
@@ -1470,6 +1511,12 @@ function syncState(){
     ?{k:"warn",ic:"🔑",t:"Is phone par sign-in nahi hai",s:"Account <b>"+esc(cloudWant())+"</b> par bana hua hai. Neeche wohi password dalein — naya data phir online jane lagega.",c:"Sign-in baqi"}
     :{k:"off",ic:"☁️",t:"Online backup band hai",s:"Neeche email se account banayein — phir sab kuch khud online mahfooz rahega.",c:"Off"};
   if(!cloudAt())return {k:"warn",ic:"⏳",t:"Pehla backup baqi hai",s:"Neeche <b>Abhi Sync Karo</b> dabayein — sara data online chala jayega.",c:"Upload baqi"};
+  if(db.settings&&db.settings.demo)
+    return {k:"warn",ic:"🧪",t:"Demo data chal raha hai",s:"Nakli demo data cloud par nahi bhejta, is liye khud-bakhud upload <b>band</b> hai — aur aakhri sync ka waqt wahi purana dikh raha hai.<br>Neeche <b>Demo Data Hataein</b> dabayein, phir asli entry karte hi upload chalu ho jayega.",c:"Demo — upload band"};
+  if(!mineNow())
+    return {k:"warn",ic:"🔐",t:"Auto upload band hai",s:"Cloud login <b>"+esc(cloudMail())+"</b> se hai, magar app mein malik ki email is se mukhtalif hai — is liye app khud upload nahi karti (kisi doosre ka backup mit na jaye).<br>Settings → Meri Dukaan mein wohi email likhein, ya <b>Abhi Sync Karo</b> dabayein.",c:"Auto band"};
+  if(cloudHold)
+    return {k:"warn",ic:"⏸️",t:"Upload rok diya gaya hai",s:"Cloud par doosre phone ka data mila tha aur faisla baqi hai. <b>Abhi Sync Karo</b> dabayein — phir sawal aayega.",c:"Ruka hua"};
   if((db.settings.savedAt||0)>(cloudAt()+3000)&&!cloudAuto())
     return {k:"warn",ic:"⚠️",t:"Nayi tabdeeli baqi hai",s:"Auto backup band hai, is liye nayi entry online nahi gayi.",c:"Baqi hai"};
   if(db.settings.dirty&&cloudAuto())
@@ -1499,6 +1546,8 @@ function syncBody(){
     <div class="syss" id="sySub">${st.s}</div>
     <div class="sychip ${st.k==="ok"?"":(st.k==="warn"?"warn":"off")}" id="syChip">${st.c}</div>
   </div>
+  ${(db.settings&&db.settings.demo)?`<div class="note" style="margin-top:12px">🧪 <b>Demo (nakli) data chal raha hai</b> — is liye online upload band hai aur "aakhri sync" ka waqt purana dikhta hai.</div>
+  <button class="btn r" style="margin-top:9px" onclick="closeSync();wipe()">🧪 Demo Data Hataein</button>`:""}
   ${on?`<button class="btn" onclick="cloudPush(1)">🔄 Abhi Sync Karo</button>
   <div class="syss" style="text-align:center;margin:9px 0 4px">Aakhri sync: <b id="syAgo">${ago(cloudAt())}</b></div>`:(cloudSDK()?syncLogin():`<div class="note">⏳ Internet ka intezar ho raha hai… net on kar ke ye page dobara kholein.</div>
   <button class="btn" style="margin-top:10px" onclick="doBackup()">💾 Phone mein Backup File Save Karo</button>`)}
@@ -1711,6 +1760,7 @@ function go(k){
   buildNav();window.scrollTo(0,0);render();
 }
 function render(){
+  try{syncDot();}catch(e){}
   if(tab==="home")renderHome();
   else if(tab==="stock")renderStock();
   else if(tab==="sale")renderSale();
@@ -1736,6 +1786,58 @@ function sheet(title,html,icon){
 }
 function closeSheet(){$("ov").classList.remove("open");try{stopPlanTmr();}catch(e){}}
 $("ov").addEventListener("click",e=>{if(e.target===$("ov"))closeSheet();});
+
+/* ---------- app ka apna sawal (dialog) ----------
+   Browser/WebView ka safaid confirm() popup app se bahir ka lagta hai, is liye
+   har jagah ye chalta hai. Native jaisa hi kaam karta hai magar Promise deta hai:
+       if(!await ask("Pakka?"))return;
+       const v=await askText("PIN likhein",{type:"number"});   // null = cancel
+   Aik waqt mein aik hi dialog — baqi qatar (queue) mein intezar karte hain.       */
+var dlgQ=[],dlgNow=null;
+function dlgBody(o){
+  const ic=o.icon||(o.danger?"⚠️":"❓");
+  return `<div class="dh">${ic} ${esc(o.title||"Tasdeeq")}</div>
+    <div class="dm">${o.html||esc(o.msg||"").replace(/\n/g,"<br>")}</div>
+    ${o.note?`<div class="dsub">${o.note}</div>`:""}
+    ${o.input?`<input id="dlgIn" class="bigin din" type="${o.type==="pass"?"password":(o.type||"text")}"
+        inputmode="${o.type==="number"?"numeric":"text"}" placeholder="${esc(o.ph||"")}" value="${esc(o.val||"")}">`:""}
+    <div class="dbtns">
+      <button class="dno" onclick="dlgEnd(0)">${esc(o.no||"Nahi")}</button>
+      <button class="dok ${o.danger?"r":""}" onclick="dlgEnd(1)">${esc(o.ok||"Haan")}</button>
+    </div>`;
+}
+function dlgShow(){
+  if(dlgNow||!dlgQ.length)return;
+  dlgNow=dlgQ.shift();
+  $("dbox").innerHTML=dlgBody(dlgNow.o);
+  $("dov").classList.add("open");
+  if(dlgNow.o.input)setTimeout(()=>{const i=$("dlgIn");if(i&&i.focus)i.focus();},130);
+}
+function dlgEnd(yes){
+  const c=dlgNow;if(!c)return;
+  let v=yes?1:0;
+  if(c.o.input)v=yes?String((($("dlgIn")||{}).value||"")):null;
+  dlgNow=null;$("dov").classList.remove("open");
+  try{c.res(v);}catch(e){}
+  if(dlgQ.length)setTimeout(dlgShow,130);
+}
+function dlgOpen(){return !!dlgNow;}
+function ask(msg,o){
+  const q=Object.assign({},o||{});q.msg=msg;
+  return new Promise(res=>{dlgQ.push({o:q,res:r=>res(!!r)});dlgShow();});
+}
+function askText(msg,o){
+  const q=Object.assign({input:1},o||{});q.msg=msg;q.input=1;
+  return new Promise(res=>{dlgQ.push({o:q,res:r=>res(r===null?null:String(r))});dlgShow();});
+}
+$("dov").addEventListener("click",e=>{if(e.target===$("dov"))dlgEnd(0);});
+document.addEventListener("keydown",e=>{
+  if(!dlgNow)return;
+  if(e.key==="Enter"){e.preventDefault();dlgEnd(1);}
+  else if(e.key==="Escape"){e.preventDefault();dlgEnd(0);}
+});
+/* Android ka back button in cheezon ko pehle band karta hai (MainActivity se) */
+window.__aDlg=function(){if(!dlgNow)return 0;dlgEnd(0);return 1;};
 
 /* ============================================================
    HOME
@@ -1912,9 +2014,10 @@ function saveProduct(id){
   else db.products.push(Object.assign({id:uid(),created:Date.now()},data));
   saveDB();closeSheet();renderStock();toast("Product save ho gaya ✓");
 }
-function delProduct(id){
+async function delProduct(id){
   if(!needPerm("del","Delete karna"))return;
-  if(!confirm("Ye product delete karna hai?"))return;
+  const dpn=(db.products.find(p=>p.id===id)||{}).name||"Ye product";
+  if(!await ask(dpn+" delete karna hai?",{title:"Product Delete",danger:true,icon:"🗑",ok:"Haan, delete",no:"Rehne dein"}))return;
   const dp=db.products.find(p=>p.id===id);
   audit("del","Product delete kiya — "+((dp&&dp.name)||"?"));
   db.products=db.products.filter(p=>p.id!==id);saveDB();closeSheet();renderStock();toast("Product delete ho gaya");
@@ -2453,14 +2556,14 @@ function drawBrList(){
     :`<div class="empty"><div class="ei">🏷️</div><p>Koi item nahi mila</p></div>`)
     +`<div class="note" style="margin-top:10px">${brCount()} item chune gaye${v>0?(" · "+(brMode[0]==="p"?(v+"%"):rs(v))+" "+(brMode[1]==="+"?"barhega":"kam hoga")):""}</div>`;
 }
-function brApply(){
+async function brApply(){
   const v=brVal();
   if(v<=0){toast("Pehle number likhein — kitna badalna hai");return;}
   const L=brList().filter(p=>brSel[p.id]);
   if(!L.length){toast("Koi item nahi chuna");return;}
-  if(!confirm(L.length+" item ka rate badla jayega.\n\n"
-    +L.slice(0,6).map(p=>"• "+p.name+": "+rs(p.salePrice)+" → "+rs(brNew(p,v))).join("\n")
-    +(L.length>6?("\n… aur "+(L.length-6)+" item"):"")+"\n\nAage barhein?"))return;
+  if(!await ask(L.slice(0,6).map(p=>"• "+p.name+": "+rs(p.salePrice)+" → "+rs(brNew(p,v))).join("\n")
+    +(L.length>6?("\n… aur "+(L.length-6)+" item"):"")+"\n\nAage barhein?",
+    {title:L.length+" item ka rate badlega",icon:"🏷️",ok:"Haan, badal dein",no:"Rehne dein"}))return;
   bkSafe("Bulk rate badalne se pehle");
   let ch=0;
   L.forEach(p=>{const o=+p.salePrice||0,n=brNew(p,v);if(n!==o){p.salePrice=n;p.rateAt=Date.now();ch++;}});
@@ -2594,7 +2697,7 @@ function drawRt(){
     ${rtMode==="udhaar"?`<div class="kv"><span>Grahak ka baqi</span><b>${rs(Math.max(0,due-r.amt))}</b></div>`:""}
   </div>`;
 }
-function rtApply(id){
+async function rtApply(id){
   const s=db.sales.find(x=>x.id===id);
   if(!s){toast("Sale nahi mili");return;}
   if(!needPerm("sale","Wapsi darj karna"))return;
@@ -2602,8 +2705,9 @@ function rtApply(id){
   if(r.amt<=0||!r.n){toast("Pehle likhein kitna maal wapas aaya");return;}
   const due=saleDue(s),mode=(rtMode==="udhaar"&&due<=0)?"cash":rtMode;
   const back=Math.min(r.amt,+s.total||0);
-  if(!confirm("Wapsi: "+rs(back)+"\n"+(mode==="udhaar"?"Grahak ka udhaar kam kar diya jayega":mode==="online"?"Online wapas kiya":"Cash wapas kiya")
-    +"\nStock wapas add ho jayega.\n\nTheek hai?"))return;
+  if(!await ask("Wapsi: "+rs(back)+"\n"+(mode==="udhaar"?"Grahak ka udhaar kam kar diya jayega":mode==="online"?"Online wapas kiya":"Cash wapas kiya")
+    +"\nStock wapas add ho jayega.",
+    {title:"Maal Wapsi",icon:"↩️",ok:"Haan, wapsi karein",no:"Rehne dein"}))return;
   bkSafe("Sale wapsi se pehle");
   const oldSub=+s.subtotal||0,oldTot=+s.total||0,txt=[];
   s.items.forEach((i,k)=>{
@@ -2861,11 +2965,12 @@ function waMonthly(off){
     +(g.top.length?("\n\nTop items:\n"+g.top.slice(0,5).map((t,k)=>(k+1)+". "+t.name+" — "+rs(t.sale)).join("\n")):"");
   try{location.href="https://wa.me/?text="+encodeURIComponent(msg);}catch(e){}
 }
-function delSale(id){
+async function delSale(id){
   if(!needPerm("del","Delete karna"))return;
   const s=db.sales.find(x=>x.id===id);
   if(!s){toast("Sale nahi mili");return;}
-  if(!confirm("Ye sale delete karein? Stock wapas add ho jayega."))return;
+  if(!await ask("Bill #"+String(s.id).slice(-6).toUpperCase()+" — "+rs(s.total)+"\nStock wapas add ho jayega.",
+    {title:"Sale Delete",danger:true,icon:"🗑",ok:"Haan, delete",no:"Rehne dein"}))return;
   s.items.forEach(i=>{const p=db.products.find(x=>x.id===i.pid);if(p)p.stock+=i.qty;});
   if(s.clientId){const c=db.clients.find(x=>x.id===s.clientId);
     if(c)c.txns=(c.txns||[]).filter(t=>t.saleId!==s.id);}
@@ -2892,13 +2997,14 @@ function findByCode(code){
   const c=(code||"").trim();if(!c)return null;
   return db.products.find(p=>(p.barcode||"").trim()===c)||null;
 }
-function useCode(code,from){
+async function useCode(code,from){
   const c=(code||"").trim();
   if(!c){toast("Barcode likhein");return;}
   const p=findByCode(c);
   if(!p){
     beep(false);
-    if(from==="stock"||confirm("Is barcode ka product nahi mila.\nNaya product add karein?")){
+    if(from==="stock"||await ask("Barcode: "+c+"\n\nIs barcode ka product nahi mila. Naya product add karein?",
+      {title:"Product Nahi Mila",icon:"🔍",ok:"Naya add karein",no:"Dobara likhein"})){
       closeSheet();openProductForm();
       setTimeout(()=>{const b=$("pBar");if(b)b.value=c;},150);
     }else openScanManual(c);
@@ -3107,9 +3213,11 @@ function saveVendor(id){
   log("🏪","Vendor: "+name);
   saveDB();openPurchasing();toast("Vendor save ✓");
 }
-function delVendor(id){
+async function delVendor(id){
   if(!needPerm("del","Delete karna"))return;
-  if(!confirm("Vendor delete karein? Purchase record rehne dega."))return;
+  const dv=(db.vendors||[]).find(x=>x.id===id)||{};
+  if(!await ask((dv.name||"Ye vendor")+" delete karein?\nPurchase ka record rehne dega.",
+    {title:"Vendor Delete",danger:true,icon:"🗑",ok:"Haan, delete",no:"Rehne dein"}))return;
   db.vendors=(db.vendors||[]).filter(x=>x.id!==id);
   saveDB();openPurchasing();toast("Vendor delete");
 }
@@ -3315,9 +3423,11 @@ function delTxn(cid,tid){
   if(!c)return;
   c.txns=(c.txns||[]).filter(t=>t.id!==tid);saveDB();openClient(cid);renderUdhaar();toast("Entry delete");
 }
-function delClient(id){
+async function delClient(id){
   if(!needPerm("del","Delete karna"))return;
-  if(!confirm("Client aur uska pura khata delete karna hai?"))return;
+  const dcn=(db.clients.find(c=>c.id===id)||{}).name||"Ye client";
+  if(!await ask(dcn+" aur uska pura khata delete karna hai?",
+    {title:"Client Delete",danger:true,icon:"🗑",ok:"Haan, delete",no:"Rehne dein"}))return;
   const dc=db.clients.find(c=>c.id===id);
   audit("del","Client delete kiya — "+((dc&&dc.name)||"?"));
   db.clients=db.clients.filter(c=>c.id!==id);saveDB();closeSheet();go("udhaar");toast("Client delete ho gaya");
@@ -4344,16 +4454,19 @@ function savePin(){
   log("🔐","App PIN "+(db.settings.pin?"set":"hata")+" kiya");
   closeSheet();toast("PIN lag gaya ✓ — agli baar app khulte hi poocha jayega");
 }
-function removePin(){
-  if(!confirm("PIN hata dein?"))return;
+async function removePin(){
+  if(!await ask("PIN hata dein? App khulte waqt phir PIN nahi poocha jayega.",
+    {title:"PIN Hataein",icon:"🔓",ok:"Haan, hata dein",no:"Rehne dein"}))return;
   db.settings.pin="";db.settings.staff=false;saveDB();closeSheet();toast("PIN hat gaya");
 }
-function toggleStaff(){
+async function toggleStaff(){
   const st=db.settings;
   if(st.staff){
     if(st.pin){
-      const v=prompt("Malik ka PIN dalein:");
-      if(v!==st.pin){toast("PIN ghalat");return;}
+      const v=await askText("Malik ka 4-digit PIN likhein",
+        {title:"Mulazim Mode Band",icon:"🔓",type:"number",ph:"••••",ok:"Kholein",no:"Rehne dein"});
+      if(v===null)return;
+      if(v!==st.pin){toast("PIN ghalat");beep(false);return;}
     }
     st.staff=false;
   }else{
@@ -4408,9 +4521,11 @@ function openSnaps(){
     <button class="btn ghost" style="margin-top:10px" onclick="doBackup()">⬇️ File Download Karein</button>
     <button class="btn ghost" style="margin-top:10px" onclick="openImport()">⬆️ File se Restore</button>`,"🛡️");
 }
-function restoreSnap(id){
+async function restoreSnap(id){
   const s=snaps().find(x=>x.id===id);if(!s){toast("Snapshot nahi mila");return;}
-  if(!confirm("Is copy par wapas jayein?\n\n"+new Date(s.at).toLocaleString("en-GB")+"\nMojooda data is se badal jayega (uski copy bhi mehfooz reh jayegi)."))return;
+  if(!await ask(new Date(s.at).toLocaleString("en-GB")+"\n\nMojooda data is se badal jayega.",
+    {title:"Is copy par wapas jayein?",icon:"♻️",ok:"Haan, wapas lein",no:"Rehne dein",
+     note:"Mojooda data ki bhi copy khud-bakhud mehfooz reh jayegi."}))return;
   try{
     bkSafe("Restore se pehle");
     const d=JSON.parse(s.data);
@@ -5049,8 +5164,9 @@ async function doLogin(){
   if(jmail&&u.role==="malik"&&!cloudOn())
     setTimeout(()=>{try{cloudAutoJoin(jmail,p);}catch(e){}},700);
 }
-function logout(){
-  if(!confirm("Logout karna hai?"))return;
+async function logout(){
+  if(!await ask("Logout karna hai? Saara data phone mein mehfooz rehta hai.",
+    {title:"Logout",icon:"🚪",ok:"Haan, logout",no:"Rehne dein"}))return;
   try{const u=curUser();if(u)audit("login",(u.name||u.uname)+" ne logout kiya");}catch(e){}
   localStorage.removeItem(SESKEY);
   closeSheet();authScreen("login");toast("Logout ho gaya");
@@ -5299,8 +5415,8 @@ function admKey(){
     <button class="abtn" onclick="admWaKey('${code}')">📲 WhatsApp</button></div>`;
   toast("Key: "+code);
 }
-function admDelKey(code){
-  if(!confirm("Ye key mita dein?\n"+code))return;
+async function admDelKey(code){
+  if(!await ask(code,{title:"Ye key mita dein?",danger:true,icon:"🗑",ok:"Haan, mitao",no:"Rehne dein"}))return;
   const a=adm();a.keys=(a.keys||[]).filter(k=>k.code!==code);
   saveDB();alog("🗑","Key delete "+code);toast("Key mit gayi");admRender();
 }
@@ -5309,8 +5425,9 @@ function admClrUsed(){
   alog("♻️","Istemaal ki keys clear");
   toast("Ab wahi key dobara chal jayegi ✓");admRender();
 }
-function admClrKeys(){
-  if(!confirm("Saari banayi hui keys mit jayengi. Pakka?"))return;
+async function admClrKeys(){
+  if(!await ask("Saari banayi hui keys mit jayengi. Pakka?",
+    {title:"Keys Clear",danger:true,icon:"🗑",ok:"Haan, sab mitao",no:"Rehne dein"}))return;
   adm().keys=[];saveDB();alog("🗑","Saari keys clear");toast("Keys clear ✓");admRender();
 }
 function admFreeTog(){
@@ -5431,10 +5548,11 @@ function admSaveUser(id){
   saveDB();alog("👤",(id?"User update — ":"User add — ")+un+" ("+u.role+")");
   closeSheet();admBack();toast("Save ✓");
 }
-function admDelUser(id){
+async function admDelUser(id){
   const u=users().find(x=>x.id===id);if(!u)return;
   if(u.role==="malik"&&users().filter(x=>x.role==="malik").length<=1){toast("Aakhri malik delete nahi ho sakta");return;}
-  if(!confirm(u.uname+" ko delete karna hai?"))return;
+  if(!await ask(u.uname+" ko delete karna hai?",
+    {title:"User Delete",danger:true,icon:"🗑",ok:"Haan, delete",no:"Rehne dein"}))return;
   db.users=users().filter(x=>x.id!==id);saveDB();alog("🗑","User delete — "+u.uname);
   const cu=curUser();if(!cu)localStorage.removeItem(SESKEY);
   closeSheet();admBack();toast("Delete ✓");
@@ -5537,12 +5655,13 @@ function admBackup(){
 function admRestore(inp){
   const f=inp.files&&inp.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=()=>{
+  r.onload=async()=>{
     try{
       const p=JSON.parse(String(r.result).replace(/^\uFEFF/,""));
       const nd=p.db||p;
       if(!nd||!nd.products){toast("Ye backup file theek nahi");return;}
-      if(!confirm("Maujooda saara data is backup se badal jayega. Yaqeen hai?"))return;
+      if(!await ask("Maujooda saara data is backup se badal jayega. Yaqeen hai?",
+        {title:"Backup Restore",danger:true,icon:"\u2B06\uFE0F",ok:"Haan, restore",no:"Rehne dein"}))return;
       db=nd;saveDB();
       if(p.snaps)try{localStorage.setItem(SNAPKEY,JSON.stringify(p.snaps));}catch(e){}
       alog("⬆️","Backup restore");toast("Restore ho gaya ✓");
@@ -5639,8 +5758,9 @@ function admChgPass(){
   if(p!==q)return fErr("amNew2","Dono ek jaise nahi");
   adm().mpass=hsh(p);saveDB();alog("🔐","Master password badla");toast("Badal gaya ✓");
 }
-function admResetBiz(){
-  if(!confirm("Sale, kharcha aur purchases zero ho jayenge. Products aur udhaar bache rahenge. Theek?"))return;
+async function admResetBiz(){
+  if(!await ask("Sale, kharcha aur purchases zero ho jayenge.\nProducts aur udhaar bache rahenge.",
+    {title:"Karobar Zero",danger:true,icon:"♻️",ok:"Haan, zero karein",no:"Rehne dein"}))return;
   db.sales=[];db.expenses=[];db.purchases=[];
   saveDB();alog("♻️","Karobar zero");toast("Zero ✓");admRender();
 }
@@ -5648,9 +5768,11 @@ function admResetFeat(){
   const a=adm();a.feats=clone(ADM_DEF.feats);a.pfeats={};a.limits=clone(ADM_DEF.limits);a.price=clone(ADM_DEF.price);
   saveDB();alog("🎛","Features reset");buildNav();toast("Reset ✓");admRender();
 }
-function admFactory(){
-  if(!confirm("💥 SAB KUCH mit jayega — users, data, admin settings. Yaqeen hai?"))return;
-  if(!confirm("Aakhri baar puch raha hoon — waqai sab delete?"))return;
+async function admFactory(){
+  if(!await ask("SAB KUCH mit jayega — users, data, admin settings.",
+    {title:"Factory Reset",danger:true,icon:"💥",ok:"Haan, sab mitao",no:"Rehne dein"}))return;
+  if(!await ask("Aakhri baar puch raha hoon — waqai sab delete?",
+    {title:"Pakki Tasdeeq",danger:true,icon:"💥",ok:"Haan, delete karo",no:"Rehne dein"}))return;
   try{localStorage.removeItem(KEY);localStorage.removeItem(SNAPKEY);localStorage.removeItem(SESKEY);}catch(e){}
   db=clone(DEF);db.users=[];saveDB();
   $("admScr").hidden=true;authScreen("signup");toast("Factory reset ✓");
@@ -5906,7 +6028,6 @@ function freshDB(){
   return n;
 }
 function resetBusiness(){
-  if(!confirm("Business Data Reset?\n\nSale, kharche aur kharidari ka record zero ho jayega.\nProducts aur udhaar khata MAHFOOZ rahenge."))return;
   askDanger("Business Data Reset",
     "Saari <b>sale</b>, <b>kharche</b> aur <b>kharidari</b> ka record mit jayega.<br>Products aur udhaar khata mahfooz rahenge.",
     ()=>doResetBusiness());
@@ -5920,9 +6041,11 @@ function doResetBusiness(){
   try{audit("del","Business data reset — "+n+" sale hataye");}catch(e){}
   saveDB();closeSheet();go("home");toast("Business data reset ✓ — udhaar aur products mahfooz");
 }
-function baharJao(){
-  if(!confirm("App band karni hai? Data mahfooz rehta hai."))return;
+async function baharJao(){
+  if(!await ask("App band karni hai? Saara data mehfooz rehta hai.",
+    {title:"App Band Karein",icon:"🔒",ok:"Haan, band karein",no:"Rehne dein"}))return;
   closeSheet();
+  try{if(window.AND&&AND.exitApp){AND.exitApp();return;}}catch(e){}
   try{window.close();}catch(e){}
   setTimeout(()=>{go("home");toast("Browser tab khud band karein");},250);
 }
@@ -5963,7 +6086,6 @@ function doRestore(inp){
   r.readAsText(f);
 }
 function wipe(){
-  if(!confirm("Sab kuch delete ho jayega — products, sales, udhaar. Pakka?"))return;
   askDanger("Saara Data Delete",
     "<b>Products, sales, udhaar khata, kharche, vendor</b> — sab mit jayega.<br>"
     +"Cloud backup bhi khali ho jayega.<br>"

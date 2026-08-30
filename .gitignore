@@ -12,7 +12,14 @@ captures/
 # ye file build ke waqt khud ban jati hai (dukaan-app.html se copy hoti hai)
 app/src/main/assets/index.html
 
+# Urdu font build ke waqt download hota hai
+app/src/main/assets/fonts/
+
 # keystore GALTI se bhi upload na ho
 *.jks
 *.keystore
 keystore-base64.txt
+
+# ...lekin debug wali key repo mein REHNI chahiye, warna har build ka
+# signature badal jata hai aur update purani app ke upar install nahi hoti
+!app/debug.keystore
