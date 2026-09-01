@@ -121,6 +121,18 @@ input::placeholder{color:var(--mut);opacity:.75}
 /* ---------- product row ---------- */
 .prod{background:var(--card);border-radius:13px;padding:12px;box-shadow:var(--sh);margin-bottom:10px;display:flex;gap:11px;align-items:center}
 .prod .pi{width:40px;height:40px;border-radius:11px;background:var(--gl);display:grid;place-items:center;font-size:17px;flex-shrink:0}
+/* product ki tasveer — list ke thumbnail aur form ka bara preview */
+.prod img.pi,.item img.av{object-fit:cover;background:var(--gl)}
+.pimgbox{display:flex;gap:12px;align-items:center}
+.pimgprev{width:82px;height:82px;border-radius:14px;object-fit:cover;background:var(--gl);
+  display:grid;place-items:center;font-size:27px;flex-shrink:0;border:1px solid var(--line)}
+.pimgbtns{display:flex;flex-direction:column;gap:7px;flex:1;min-width:0}
+/* app ki tajweez — naam se nishan */
+.emonote{font-size:12px;color:var(--mut);margin:11px 0 7px;line-height:1.5}
+.chip.emo{font-size:13px;padding:7px 11px}
+.emobanner{background:var(--card);border:1px dashed var(--g);border-radius:13px;padding:13px;
+  margin-bottom:11px;font-size:13px;color:var(--mut);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.emobanner .btn{max-width:170px;margin:0}
 .prod .pm{flex:1;min-width:0}
 .prod .pn{font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prod .pc{font-size:12px;color:var(--mut)}
@@ -779,12 +791,44 @@ function saveDB(){
    1) har khatarnak kaam se pehle phone mein khud-bakhud copy
    2) upload reh jaye to net aane par khud dobara koshish
    3) doosre phone ka naya cloud data mitne se pehle sawal */
+/* Product ki tasveerein bhaari hoti hain (har aik ~15 KB). Phone ki 8 copiyon
+   aur cloud ke aik document mein itni jagah nahi hoti — is liye copy/upload mein
+   tasveerein nahi jaati, sirf hisaab jata hai. Tasveer par nishan (imgWas) lag
+   jata hai, aur wapas lete waqt isi phone ki tasveer khud jurh jati hai. */
+function imgLite(o){
+  try{
+    const d=o||db;
+    if(!d||!d.products||!d.products.some(p=>p&&p.img))return d;
+    return Object.assign({},d,{products:d.products.map(p=>{
+      if(!p||!p.img)return p;
+      const q=Object.assign({},p);delete q.img;q.imgWas=1;return q;})});
+  }catch(e){return o||db;}
+}
+function snapData(o){try{return JSON.stringify(imgLite(o));}catch(e){
+  try{return JSON.stringify(o||db);}catch(e2){return "{}";}}}
+/* cloud: chhoti dukaan ki tasveerein online bhi chali jaati hain; barh jaye to
+   (Firestore ki 1 MB ki hadd se pehle) tasveerein chhorh kar hisaab bacha lo */
+function packData(){
+  try{const full=JSON.stringify(db);
+    return full.length<=700000?full:snapData();}catch(e){return snapData();}
+}
+/* copy/cloud se wapas aane par tasveerein isi phone se dobara jorh do */
+function imgReJoin(old){
+  try{
+    const src=(old&&old.products)||[];
+    (db.products||[]).forEach(p=>{
+      if(!p)return;
+      if(!p.img&&p.imgWas){const o=src.find(x=>x&&x.id===p.id);if(o&&o.img)p.img=o.img;}
+      delete p.imgWas;
+    });
+  }catch(e){}
+}
 function bkSafe(note){
   try{
     const l=snaps();
     l.unshift({id:uid(),day:new Date().toISOString().slice(0,10),at:Date.now(),safe:1,
       note:note||"Khud-bakhud copy",sales:(db.sales||[]).length,products:(db.products||[]).length,
-      data:JSON.stringify(db)});
+      data:snapData()});
     while(l.length>8)l.pop();
     localStorage.setItem(SNAPKEY,JSON.stringify(l));return 1;
   }catch(e){return 0;}
@@ -794,7 +838,7 @@ function bkDoc(o,note){
   try{const d=JSON.parse(o.data);if(!d||typeof d!=="object")return 0;
     const l=snaps();
     l.unshift({id:uid(),day:new Date(o.at||Date.now()).toISOString().slice(0,10),at:o.at||Date.now(),safe:1,
-      note:note||"Cloud copy",sales:(d.sales||[]).length,products:(d.products||[]).length,data:o.data});
+      note:note||"Cloud copy",sales:(d.sales||[]).length,products:(d.products||[]).length,data:snapData(d)});
     while(l.length>8)l.pop();
     localStorage.setItem(SNAPKEY,JSON.stringify(l));return 1;
   }catch(e){return 0;}
@@ -853,7 +897,7 @@ function cloudAt(){return db.settings.cloudAt||0;}
 function cloudCounts(){return {p:(db.products||[]).length,s:(db.sales||[]).length,c:(db.clients||[]).length};}
 function cloudPack(){
   const n=cloudCounts();
-  return {data:JSON.stringify(db),at:Date.now(),n:n,did:myDev(),
+  return {data:packData(),at:Date.now(),n:n,did:myDev(),
     shop:(db.settings.shopName||"Dukaan"),ver:(adm().brand.ver||""),
     dev:(navigator.userAgent||"").slice(0,90)};
 }
@@ -966,8 +1010,10 @@ function cloudApply(o,quiet,noReload){
     const d=JSON.parse(o.data);
     if(!d||typeof d!=="object")throw new Error("bad data");
     try{if(!cloudEmpty())bkSafe("Cloud se data lene se pehle");}catch(e){}
+    const _oldI=db;
     db=Object.assign(JSON.parse(JSON.stringify(DEF)),d,
       {settings:Object.assign({},DEF.settings,d.settings||{})});
+    imgReJoin(_oldI);
     db.settings.cloudAt=o.at||Date.now();db.settings.dirty=false;cloudHold=0;
     cloudQuiet=1;saveDB();cloudQuiet=0;
     log("\u2601\ufe0f","Cloud se data wapis liya");
@@ -1784,7 +1830,8 @@ function sheet(title,html,icon){
   $("ov").classList.add("open");
   try{stopPlanTmr();}catch(e){}
 }
-function closeSheet(){$("ov").classList.remove("open");try{stopPlanTmr();}catch(e){}}
+function closeSheet(){$("ov").classList.remove("open");try{stopPlanTmr();}catch(e){}
+  try{pCamStop();}catch(e){}}
 $("ov").addEventListener("click",e=>{if(e.target===$("ov"))closeSheet();});
 
 /* ---------- app ka apna sawal (dialog) ----------
@@ -1934,14 +1981,18 @@ function renderStock(){
   else if(stkFilter==="out")list=list.filter(p=>stockState(p)==="out");
   else if(stkFilter.startsWith("c:"))list=list.filter(p=>p.category===stkFilter.slice(2));
   if(q)list=list.filter(p=>p.name.toLowerCase().includes(q)||(p.category||"").toLowerCase().includes(q)||(p.barcode||"").includes(q));
-  $("stkList").innerHTML=list.length?list.map(p=>prodRow(p)).join("")
+  const need=emoNeed();
+  const ban=need>1?`<div class="emobanner">🎨 ${need} products ki koi tasveer nahi —
+    app in ke naam se khud nishan laga sakti hai.
+    <button class="btn sm" onclick="emoFillAll()">Nishan Lagayein</button></div>`:"";
+  $("stkList").innerHTML=ban+(list.length?list.map(p=>prodRow(p)).join("")
     :`<div class="empty"><div class="ei">📦</div><p>${db.products.length?"Koi product nahi mila":"Abhi koi product nahi"}</p>
-      <button class="btn" style="max-width:210px;margin:0 auto" onclick="openProductForm()">＋ Pehla Product Add Karein</button></div>`;
+      <button class="btn" style="max-width:210px;margin:0 auto" onclick="openProductForm()">＋ Pehla Product Add Karein</button></div>`);
 }
 function prodRow(p){
   const st=stockState(p),pct=Math.max(4,Math.min(100,(p.stock/Math.max(1,(p.minStock||5)*3))*100));
   return `<div class="prod">
-    <div class="pi">📦</div>
+    ${pIco(p,"pi")}
     <div class="pm">
       <div class="pn">${esc(p.name)}</div>
       <div class="pc">${esc(p.category||"—")}${p.barcode?" · "+esc(p.barcode):""}</div>
@@ -1961,13 +2012,21 @@ let pfCat="Kiryana",pfUnit="pcs",pfMode="unit";
 function openProductForm(id){
   const p=id?db.products.find(x=>x.id===id):null;
   pfCat=p?p.category||"Kiryana":"Kiryana";pfUnit=p?p.unit||"pcs":"pcs";pfMode="unit";
+  pfImg=p?(p.img||""):"";pfEmo=p?(p.emo||""):"";pCamStop();
   sheet(p?"Product Edit":"Naya Product",`
     <div class="card-in"><h4>📝 Basic Info</h4>
       <div class="fld"><label>Product Naam *</label>
-        <input id="pName" placeholder="e.g. Doodh, Chai, Anda..." value="${p?esc(p.name):""}"></div>
+        <input id="pName" placeholder="e.g. Doodh, Chai, Anda..." oninput="emoTick()" value="${p?esc(p.name):""}"></div>
       <div class="fld"><label>Category</label><div class="chips" id="pCats"></div></div>
       <div class="fld"><label>Barcode / QR (optional)</label>
         <input id="pBar" placeholder="Barcode number" value="${p?esc(p.barcode||""):""}"></div>
+    </div>
+    <div class="card-in"><h4>📷 Product ki Tasveer <span style="color:var(--mut);font-weight:400">(optional)</span></h4>
+      <div class="pimgbox" id="pImgBox"></div>
+      <input type="file" id="pImgFile" accept="image/*" style="display:none" onchange="pickPImg(this)">
+      <div id="pEmoBox"></div>
+      <p style="font-size:12px;color:var(--mut);margin:10px 0 0">Tasveer khud chhoti kar di jati hai
+        (taqreeban 15 KB) taake app bhari na ho aur phone slow na chale.</p>
     </div>
     <div class="card-in"><h4>💰 Pricing</h4>
       <div class="fld"><label>Sale Price (per ${esc(pfUnit)}) *</label>
@@ -1989,7 +2048,287 @@ function openProductForm(id){
     <button class="btn" onclick="saveProduct(${p?"'"+p.id+"'":"null"})">✓ Product Save Karein</button>
     ${p?`<button class="btn ghost" style="margin-top:10px" onclick="delProduct('${p.id}')">🗑 Product Delete</button>`:""}
   `,"📦");
-  drawChips();
+  drawChips();drawPImg();
+}
+/* ---------- product ki tasveer (image) ----------
+   Tasveer chhoti kar ke JPEG dataURL bana lete hain (~15 KB), phir wo product ke
+   record mein hi rehti hai — is liye backup aur cloud sync ke sath khud chali jati hai.
+   Camera isi sheet ke andar khulta hai (naya sheet nahi), warna form mein likha hua
+   naam/price mit jata. Page https origin par chalta hai, is liye getUserMedia kaam karta hai. */
+var pfImg="",pfEmo="",pCamS=null;
+function imgSquash(src,cb){
+  const im=new Image();
+  im.onload=function(){
+    const M=220,sc=Math.min(1,M/Math.max(im.width,im.height));
+    const w=Math.max(1,Math.round(im.width*sc)),h=Math.max(1,Math.round(im.height*sc));
+    const c=document.createElement("canvas");c.width=w;c.height=h;
+    const x=c.getContext("2d");x.fillStyle="#ffffff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);
+    let q=0.62,out=c.toDataURL("image/jpeg",q);
+    while(out.length>46000&&q>0.34){q-=0.08;out=c.toDataURL("image/jpeg",q);}
+    cb(out);
+  };
+  im.onerror=function(){toast("Ye tasveer khul nahi saki");};
+  im.src=src;
+}
+function pickPImg(inp){
+  const f=inp.files&&inp.files[0];inp.value="";
+  if(!f)return;
+  if(f.type&&f.type.indexOf("image/")!==0){toast("Sirf tasveer chunein");return;}
+  const r=new FileReader();
+  r.onload=e=>imgSquash(e.target.result,d=>{pfImg=d;drawPImg();toast("Tasveer lag gayi ✓");});
+  r.onerror=()=>toast("Tasveer parh nahi saka");
+  r.readAsDataURL(f);
+}
+function drawPImg(){
+  const box=$("pImgBox");if(!box)return;
+  box.innerHTML=`${pfImg?`<img class="pimgprev" src="${pfImg}" alt="">`:`<div class="pimgprev">${pfEmo||"📷"}</div>`}
+    <div class="pimgbtns">
+      <button class="btn sm ghost" type="button" onclick="pCamOn()">📷 Camera se kheenchein</button>
+      <button class="btn sm ghost" type="button" onclick="$('pImgFile').click()">🖼 Gallery se chunein</button>
+      ${pfImg?`<button class="btn sm ghost" type="button" onclick="pfImg='';drawPImg()">🗑 Tasveer hataayein</button>`:""}
+    </div>`;
+  drawEmoSug();
+}
+/* App ki tajweez form mein dikhana. Naam likhte hi ye khud badalti rehti hai. */
+function drawEmoSug(){
+  const box=$("pEmoBox");if(!box)return;
+  const list=emoGuess((($("pName")||{}).value||""),4);
+  if(!list.length&&!pfEmo){
+    box.innerHTML=`<p class="emonote">Naam likhein — app khud us cheez ka nishan tajweez kar degi.</p>`;return;}
+  const show=list.slice();
+  if(pfEmo&&!show.some(e=>e[0]===pfEmo))show.unshift([pfEmo,"Chuna hua"]);
+  box.innerHTML=`<p class="emonote">${pfImg
+      ?"Asli tasveer lag gayi hai — nishan sirf us waqt dikhega jab tasveer na ho."
+      :"App ki tajweez — jo theek lage us par dabaein:"}</p>
+    <div class="chips">${show.map(e=>`<button class="chip emo ${pfEmo===e[0]?"on":""}" type="button"
+      onclick="pfEmo='${e[0]}';drawPImg()">${e[0]} ${esc(e[1])}</button>`).join("")}${pfEmo
+      ?`<button class="chip" type="button" onclick="pfEmo='';drawPImg()">✕ Nishan hataayein</button>`:""}</div>`;
+}
+var _emoT=0;
+function emoTick(){clearTimeout(_emoT);_emoT=setTimeout(drawEmoSug,260);}
+async function pCamOn(){
+  const box=$("pImgBox");if(!box)return;
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){
+    toast("Is phone par camera nahi khulta — Gallery se chunein");return;}
+  box.innerHTML=`<div style="flex:1;min-width:0">
+      <div class="scanwrap"><video id="pcamV" playsinline muted></video></div>
+      <div class="brow" style="margin-top:9px">
+        <button class="btn sm ghost" type="button" onclick="pCamStop();drawPImg()">Waapis</button>
+        <button class="btn sm" type="button" onclick="pCamShot()">📸 Tasveer Lein</button></div></div>`;
+  try{
+    pCamS=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});
+    const v=$("pcamV");if(!v){pCamStop();return;}
+    v.srcObject=pCamS;await v.play();
+  }catch(e){pCamStop();drawPImg();toast("Camera nahi khula — ijazat dein ya Gallery se chunein");}
+}
+function pCamShot(){
+  const v=$("pcamV");
+  if(!v||!v.videoWidth){toast("Camera abhi taiyar nahi — zara ruk kar dobara");return;}
+  const c=document.createElement("canvas");c.width=v.videoWidth;c.height=v.videoHeight;
+  c.getContext("2d").drawImage(v,0,0);
+  let raw="";try{raw=c.toDataURL("image/jpeg",0.9);}catch(e){}
+  pCamStop();
+  if(!raw){drawPImg();toast("Tasveer nahi bani — dobara koshish karein");return;}
+  imgSquash(raw,d=>{pfImg=d;drawPImg();toast("Tasveer lag gayi ✓");});
+}
+function pCamStop(){if(pCamS){try{pCamS.getTracks().forEach(t=>t.stop());}catch(e){}pCamS=null;}}
+/* ============================================================
+   TASVEER KI TAJWEEZ — naam likho, app khud nishan chun leti hai
+   ============================================================
+   Dukaan-dar sirf naam likhta hai ("floor", "aata", "آٹا") aur app us cheez ka
+   nishan tajweez kar deti hai. Asli brand photo internet se aati hai (aur uska
+   copyright bhi hota hai), is liye nishan app ke andar hi rakhe hain — internet
+   ki zaroorat nahi, aur jagah bhi zero: tasveer ~15,000 harf ki hoti hai, nishan
+   sirf 2 harf ka. Product par ye `emo` mein save hota hai.
+   Ghalat spelling chalti hai: floor/flour/aata/atta/ata — sab aik hi cheez. */
+const EMO_DB=[
+ ["\u{1F33E}","Aata / Maida","ata flour maida suji semolina daliya wheat gandum آٹا میدہ سوجی"],
+ ["\u{1F35A}","Chawal / Rice","chawal rice basmati sella tota چاول"],
+ ["\u{1F36C}","Cheeni / Sugar","cheeni sugar shakar gur jaggery چینی شکر گڑ"],
+ ["\u{1F9C2}","Namak / Salt","namak salt نمک","\u{26AA}"],
+ ["\u{1F35B}","Masala / Spice","masala spice garam haldi turmeric dhania zeera cumin elaichi saunf laung achari مصالحہ ہلدی زیرہ"],
+ ["\u{1F336}️","Mirch / Chilli","mirch chilli chili pepper laalmirch مرچ"],
+ ["\u{1F963}","Daal / Chana","daal dal lentil masoor moong chana channa maash lobia rajma beans دال چنا"],
+ ["\u{1F6E2}️","Tel / Cooking Oil","tel oil cooking sunflower canola kukingtel تیل"],
+ ["\u{1F9C8}","Ghee / Makhan","ghee ghi banaspati dalda butter makhan margarine گھی مکھن ڈالڈا","\u{1F944}"],
+ ["\u{1F36F}","Shahad / Honey","shahad honey شہد"],
+ ["\u{1F95B}","Doodh / Milk","doodh dudh milk olpers milkpak nido powdermilk دودھ"],
+ ["\u{1F376}","Dahi / Lassi","dahi yogurt curd lassi raita دہی لسی"],
+ ["\u{1F9C0}","Cheese / Paneer","cheese chiz paneer پنیر"],
+ ["\u{1F95A}","Anda / Egg","anda ande egg انڈا انڈے"],
+ ["\u{1F35E}","Bread / Rusk","bread dabalroti bun rusk toast slice بریڈ"],
+ ["\u{1F96F}","Naan / Roti","roti naan chapati paratha نان روٹی پراٹھا","\u{1F956}"],
+ ["☕","Chai / Coffee","chai tea patti lipton tapal danedar coffee kafi nescafe چائے پتی کافی"],
+ ["\u{1F375}","Qehwa / Green Tea","greentea qehwa kehwa قہوہ"],
+ ["\u{1F964}","Cold Drink","coldrink cola pepsi coke sprite fanta mirinda dew soda کولڈ ڈرنک"],
+ ["\u{1F9C3}","Juice","juice nectar frooto slice juic جوس","\u{1F379}"],
+ ["\u{1F4A7}","Pani / Water","pani water mineral aqua پانی"],
+ ["\u{1F9CA}","Barf / Ice","ice barf برف","\u{2744}\u{FE0F}"],
+ ["\u{1F36B}","Chocolate","chocolate choklet dairymilk kitkat munch snickers چاکلیٹ"],
+ ["\u{1F36D}","Toffee / Candy","toffee candy lollipop jelly chews ٹافی"],
+ ["\u{1F36A}","Biscuit","biscuit biskut biskit cookie sooper gluco marie بسکٹ"],
+ ["\u{1F35F}","Chips / Nimko","chips crisps slanty kurkure nimko snack چپس"],
+ ["\u{1F37F}","Popcorn","popcorn پاپ کارن"],
+ ["\u{1F366}","Ice Cream","icecream kulfi cone آئس کریم قلفی"],
+ ["\u{1F9C1}","Cake / Pastry","cake pastry cupcake keke کیک","\u{1F370}"],
+ ["\u{1F36E}","Mithai / Halwa","mithai sweet barfi laddu jalebi halwa gulabjaman مٹھائی حلوہ"],
+ ["\u{1F95C}","Dry Fruit","badam almond akhrot walnut kaju peanut moongphali pista chilgoza dryfruit بادام"],
+ ["\u{1F35C}","Noodles / Pasta","noodles pasta macroni maggi ramen نوڈلز"],
+ ["\u{1F96B}","Sauce / Achar","sauce ketchup chutney achar paste tin canned jam murabba کیچپ اچار"],
+ ["\u{1F357}","Murghi / Chicken","murgi murghi chicken broiler مرغی"],
+ ["\u{1F969}","Gosht / Meat","gosht meat beef mutton bakra qeema گوشت قیمہ"],
+ ["\u{1F41F}","Machli / Fish","machli fish مچھلی"],
+ ["\u{1F954}","Aloo / Potato","aloo alu potato آلو"],
+ ["\u{1F9C5}","Piyaz / Onion","piyaz pyaz onion پیاز","\u{1F330}"],
+ ["\u{1F9C4}","Lehsan / Garlic","lehsan garlic لہسن","\u{1F331}"],
+ ["\u{1F345}","Tamatar / Tomato","tamatar tomato ٹماٹر"],
+ ["\u{1F955}","Gajar / Carrot","gajar carrot گاجر"],
+ ["\u{1F96C}","Sabzi / Palak","sabzi vegetable palak spinach saag methi kaddu turai bhindi tinda سبزی پالک","\u{1F957}"],
+ ["\u{1F966}","Gobi","gobi cauliflower broccoli phoolgobi bandgobi گوبھی"],
+ ["\u{1F33D}","Makai / Bhutta","makai corn bhutta مکئی"],
+ ["\u{1F952}","Kheera","kheera khira cucumber کھیرا"],
+ ["\u{1F346}","Baingan","baingan brinjal eggplant بینگن"],
+ ["\u{1F33F}","Adrak / Podina","adrak ginger podina mint dhania coriander harimirch ادرک پودینہ"],
+ ["\u{1F34B}","Nimbu / Lemon","lemon nimbu limu لیموں"],
+ ["\u{1F34C}","Kela / Banana","kela banana کیلا"],
+ ["\u{1F34E}","Seb / Apple","seb apple سیب"],
+ ["\u{1F34A}","Malta / Kinnow","malta kinnow orange santra مالٹا کینو"],
+ ["\u{1F347}","Angoor / Grapes","angoor grapes انگور"],
+ ["\u{1F96D}","Aam / Mango","aam mango آم","\u{1F34F}"],
+ ["\u{1F349}","Tarbooz","tarbooz watermelon تربوز"],
+ ["\u{1F348}","Kharbooza","kharbooza melon garma خربوزہ"],
+ ["\u{1F350}","Nashpati / Pear","nashpati pear ناشپاتی"],
+ ["\u{1F351}","Aaru / Peach","aaru peach آڑو"],
+ ["\u{1F353}","Strawberry","strawberry اسٹرابیری"],
+ ["\u{1F9FC}","Sabun / Soap","sabun soap lifebuoy safeguard lux dettol صابن","\u{1F6C1}"],
+ ["\u{1F9F4}","Shampoo / Paste","shampoo shampu lotion cream conditioner toothpaste colgate manjan شیمپو پیسٹ لوشن","\u{1F6BF}"],
+ ["\u{1F9FA}","Surf / Detergent","surf detergent washingpowder ariel bright express sirf ڈٹرجنٹ سرف","\u{1F455}"],
+ ["\u{1F9F9}","Jharu / Wiper","jharu broom wiper mop جھاڑو","\u{2728}"],
+ ["\u{1F9FD}","Scrubber","scrubber sponge loofah سکربر","\u{1F4A6}"],
+ ["\u{1F9FB}","Tissue / Roll","tissue roll toiletpaper napkin ٹشو","\u{1F4DC}"],
+ ["\u{1F56F}️","Mombatti / Candle","candle mombatti موم بتی"],
+ ["\u{1F525}","Machis / Lighter","lighter matchbox machis diasalai gas cylinder ماچس لائٹر گیس"],
+ ["\u{1F50B}","Battery / Cell","battery cell duracell سیل بیٹری"],
+ ["\u{1F4A1}","Bulb / Light","bulb light energysaver led tube بلب"],
+ ["\u{1F6AC}","Cigarette","cigarette sigret goldleaf morven capstan pinemint سگریٹ"],
+ ["\u{1F48A}","Dawa / Medicine","dawa medicine tablet panadol disprin syrup capsule دوا گولی"],
+ ["\u{1F37C}","Baby / Feeder","baby feeder nipple cerelac lactogen bachon فیڈر"],
+ ["\u{1F9F7}","Diaper / Pampers","diaper pampers nappy huggies canbebe ڈایپر","\u{1F476}"],
+ ["✂️","Blade / Razor","blade razor shaving gillette scissors qainchi قینچی بلیڈ"],
+ ["\u{1F9E6}","Jurab / Kapra","socks jurab kapra cloth banyan جراب"],
+ ["\u{1F58A}️","Pen / Copy","pen pencil copy register notebook stationery قلم کاپی رجسٹر"],
+ ["\u{1F37D}️","Bartan / Plate","bartan plate glass cup chamach spoon dish برتن پلیٹ"],
+ ["\u{1F50C}","Charger / Cable","charger cable adapter usb چارجر"],
+ ["\u{1F4F1}","Mobile / Load","mobile sim easyload load card موبائل سم"],
+ ["⚽","Khilona / Ball","ball toy khilona gend گیند کھلونا"],
+ ["\u{1F388}","Ghubara / Party","ghubara balloon party غبارہ"]
+];
+/* Naam ko aik saada shakal mein badal dete hain, taake ghalat hijje (spelling) bhi
+   chal jayein: ph→f, c→k (ch chhor kar), q→k, w→v, y/i aik, o/u aik, dohre harf
+   aik, aur aakhri plural "s" hata do. Yehi kaam dono taraf hota hai — is liye
+   "floor", "flour" aur "flor" teeno aik hi lafz ban jate hain. */
+const _emoNC={};
+function emoNorm(s){
+  const k=String(s==null?"":s);
+  if(_emoNC[k]!==undefined)return _emoNC[k];
+  const t=k.toLowerCase()
+    .replace(/[ؐ-ًؚ-ٰٟۖ-ۭ]/g,"")   /* Urdu aeraab */
+    .replace(/[^a-z؀-ۿ]+/g," ")                            /* hindse/nishaan */
+    .replace(/ch/g,"C").replace(/sh/g,"S").replace(/ph/g,"f")
+    .replace(/[cq]/g,"k").replace(/w/g,"v").replace(/[yi]/g,"e").replace(/u/g,"o")
+    .replace(/C/g,"ch").replace(/S/g,"sh")   /* C aur S mehfooz hain: is se pehle sirf chhote harf bachte hain */
+    .replace(/([aeo])[aeo]+/g,"$1")                                  /* aa/oo/ou → aik */
+    .replace(/(.)\1+/g,"$1")                                         /* tt/ll → aik */
+    .replace(/([a-z]{2})s(?= |$)/g,"$1")                             /* eggs → egg, chips → chip */
+    .replace(/\s+/g," ").trim();
+  return _emoNC[k]=t;
+}
+/* Wazan, dabbay aur brand ke bharti lafz — in se cheez ki pehchan nahi hoti.
+   Poori list emoNorm se guzarti hai, warna "kilo" jaise lafz (jo "kelo" ban jate hain)
+   kabhi is list se na milte aur tajweez kharab karte. */
+const EMO_STOP=" "+emoNorm("kg kilo gram gm ltr liter litre ml pcs pack packet box dozen darjan"+
+  " bara chota bari choti no size pouch bottle jar tin dabba piece pc new best"+
+  " special original premium deluxe super jumbo mini family economy value combo"+
+  " offer sale rate quality brand company product item")+" ";
+function emoWords(s){
+  return emoNorm(s).split(" ").filter(w=>w.length>1&&EMO_STOP.indexOf(" "+w+" ")<0);
+}
+const _emoAL=[];
+function emoAliases(i){
+  if(!_emoAL[i])_emoAL[i]=emoWords(EMO_DB[i][2]);
+  return _emoAL[i];
+}
+/* Purane phone (Android 9 se pehle) kuch naye nishan nahi jante — wahan khali dabba (□)
+   dikhta hai. Jin nishano par yeh khatra hai, un ke sath aik purana mutabadil nishan
+   likha hua hai. Yahan canvas par aik baar bana kar dekh lete hain ke phone is nishan ko
+   pehchanta hai ya nahi; na pehchane to purana nishan istemal hota hai. */
+const _emoSup={};
+function emoOk(ch){
+  if(_emoSup[ch]!==undefined)return _emoSup[ch];
+  let r=true;
+  try{
+    const c=document.createElement("canvas");c.width=32;c.height=32;
+    const x=c.getContext("2d");x.font="22px sans-serif";x.textBaseline="top";
+    x.clearRect(0,0,32,32);x.fillText(ch,2,2);const a=c.toDataURL();
+    x.clearRect(0,0,32,32);x.fillText("\u{2FFFF}",2,2);   /* aisa harf jo kisi font mein nahi */
+    r=(a!==c.toDataURL());
+  }catch(e){r=true;}
+  return _emoSup[ch]=r;
+}
+function emoIcon(i){
+  const e=EMO_DB[i];
+  return (e[3]&&!emoOk(e[0]))?e[3]:e[0];
+}
+/* Aik lafz ka score. Sab se sakht sharat pehle:
+   poora lafz barabar > alias se shuru hone wala lafz > lafz se shuru hone wala alias
+   > andar kahin mila. Aakhri do sharton par lambai ki qaid lagi hai warna
+   "Nadeem Sons" ka "son" lafz "sonflover" (sunflower) se mil kar tel tajweez kar deta tha. */
+function emoScore(qs,al){
+  let best=0,hits=0;
+  for(let i=0;i<qs.length;i++){
+    const q=qs[i];let s=0;
+    for(let j=0;j<al.length;j++){
+      const a=al[j];
+      if(a===q)s=Math.max(s,100);
+      else if(a.length>2&&q.indexOf(a)===0)s=Math.max(s,62);
+      else if(q.length>3&&a.indexOf(q)===0&&a.length-q.length<4)s=Math.max(s,54);
+      else if(a.length>3&&q.indexOf(a)>0)s=Math.max(s,34);
+      else if(q.length>4&&a.indexOf(q)>0)s=Math.max(s,30);
+    }
+    if(s){hits++;if(s>best)best=s;}
+  }
+  return best?best+(hits-1)*4:0;
+}
+/* naam se top nishan — [[emoji,label,score],...] */
+function emoGuess(name,n){
+  const qs=emoWords(name);
+  if(!qs.length)return [];
+  const out=[];
+  for(let i=0;i<EMO_DB.length;i++){
+    const sc=emoScore(qs,emoAliases(i));
+    if(sc>=30)out.push([emoIcon(i),EMO_DB[i][1],sc]);
+  }
+  out.sort((a,b)=>b[2]-a[2]);
+  return out.slice(0,n||4);
+}
+/* Product ka chhota nishan: pehle asli tasveer, phir tajweez shuda nishan, warna 📦 */
+function pIco(p,cls){
+  const c=cls||"pi";
+  if(p&&p.img)return `<img class="${c}" src="${p.img}" alt="">`;
+  const bg=c==="av"?` style="background:${avc((p&&p.name)||"")}"`:"";
+  return `<div class="${c}"${bg}>${(p&&p.emo)||"📦"}</div>`;
+}
+function emoNeed(){
+  try{return db.products.filter(p=>p&&!p.img&&!p.emo&&emoGuess(p.name,1).length).length;}
+  catch(e){return 0;}
+}
+/* Purane products — aik dabaane par sab ke naam se nishan lag jate hain. */
+function emoFillAll(){
+  let n=0;
+  db.products.forEach(p=>{ if(!p||p.img||p.emo)return;
+    const g=emoGuess(p.name,1);if(g.length){p.emo=g[0][0];n++;} });
+  if(!n){toast("Naam se koi nishan pehchana nahi gaya");return;}
+  saveDB();renderStock();toast(n+" products par nishan lag gaya ✓");
 }
 function drawChips(){
   $("pCats").innerHTML=CATS.map(c=>`<button class="chip ${pfCat===c?"on":""}" onclick="pfCat='${c}';drawChips()">${c}</button>`).join("");
@@ -2006,6 +2345,8 @@ function saveProduct(id){
   const prev=id?db.products.find(p=>p.id===id):null;
   const data={name,category:pfCat,barcode:$("pBar").value.trim(),salePrice:sale,
     costPrice:(staffOn()?(prev?(prev.costPrice||0):0):num("pCost")),stock:num("pStock"),minStock:num("pMin")||5,unit:pfUnit,
+    img:pfImg||"",
+    emo:pfEmo||((emoGuess(name,1)[0]||[""])[0]),   /* kuch na chuna ho to app khud tajweez laga deti hai */
     expiry:(($("pExp")||{}).value||"").trim()};
   if(id){const p=db.products.find(p=>p.id===id);if(!p){toast("Product nahi mila");return;}
     if((+p.salePrice||0)!==sale)audit("rate",p.name+": rate "+rs(p.salePrice)+" \u2192 "+rs(sale),sale);
@@ -2083,7 +2424,7 @@ function renderSaleSearch(){
   const list=db.products.filter(p=>p.name.toLowerCase().includes(q)||(p.barcode||"").includes(q)).slice(0,8);
   $("saleResults").innerHTML=list.length?`<div class="box" style="margin-bottom:14px">${list.map(p=>`
     <div class="item" onclick="addToCart('${p.id}')">
-      <div class="av" style="background:${avc(p.name)}">📦</div>
+      ${pIco(p,"av")}
       <div class="m"><div class="n">${esc(p.name)}</div>
         <div class="d">${p.stock} ${esc(p.unit||"pcs")} available</div></div>
       <div class="e"><div class="amt" style="color:var(--g)">${rs(p.salePrice)}</div>
@@ -2342,7 +2683,7 @@ function openSale(id){
       <button class="btn ghost" onclick="openReceiptPreview('${s.id}')">📄 Parchi Dekho</button>
     </div>
     <div class="brow" style="margin-top:10px">
-      <button class="btn ghost" onclick="shareReceipt('${s.id}')">📲 Share</button>
+      <button class="btn ghost" onclick="waAsk('${s.id}')">📲 WhatsApp</button>
       <button class="btn r" onclick="delSale('${s.id}')">🗑 Delete</button>
     </div>`,"🧾");
 }
@@ -2365,11 +2706,11 @@ function drawInvoices(){
   sheet("Saare Invoice",`
     <p style="font-size:13px;color:var(--mut);margin:-6px 0 11px">Koi bhi purana invoice dobara khol kar print kar sakte hain.</p>
     <div class="search" style="margin-bottom:12px">
-      <span class="si2">\U0001f50d</span>
+      <span class="si2">🔍</span>
       <input id="invQ" value="${esc(invQ)}" placeholder="Invoice #, client, item ya raqam…"
         oninput="invQ=this.value;drawInvoicesList()">
     </div>
-    <div id="invList"></div>`,"\U0001f4c2");
+    <div id="invList"></div>`,"📂");
   setTimeout(()=>{const i=$("invQ");if(i&&i.focus)i.focus();},120);
   drawInvoicesList();
 }
@@ -2389,23 +2730,14 @@ function drawInvoicesList(){
   box.innerHTML=shown.length?`<div class="box">${shown.map(s=>{
     const cl=s.clientId?db.clients.find(c=>c.id===s.clientId):null;
     return `<div class="item">
-      <div class="av" style="background:${avc(s.id)}">\U0001f9fe</div>
+      <div class="av" style="background:${avc(s.id)}">🧾</div>
       <div class="m" onclick="openSaleDone('${s.id}')" style="cursor:pointer">
         <div class="n">#${s.id.slice(-6).toUpperCase()} · ${rs(s.total)}</div>
         <div class="d">${fdate(s.date)}${cl?" · "+esc(cl.name):""} · ${s.items.length} item</div></div>
-      <button class="qchip" onclick="printSale('${s.id}',1)">\U0001f5a8</button>
-      <button class="qchip" onclick="openSaleDone('${s.id}')">\U0001f4c4</button></div>`;}).join("")}</div>
+      <button class="qchip" onclick="printSale('${s.id}',1)">🖨</button>
+      <button class="qchip" onclick="openSaleDone('${s.id}')">📄</button></div>`;}).join("")}</div>
     ${list.length>40?`<p style="font-size:12px;color:var(--mut);text-align:center;margin-top:10px">Sirf pehle 40 dikh rahe hain — search karein.</p>`:""}`
-    :`<div class="empty"><div class="ei">\U0001f4c2</div><p>${q?"Kuch nahi mila":"Abhi koi invoice nahi"}</p></div>`;
-}
-function shareReceipt(id){
-  const s=db.sales.find(x=>x.id===id);
-  if(!s){toast("Sale nahi mili");return;}
-  const msg=`${db.settings.storeName}\n${new Date(s.date).toLocaleString("en-GB")}\n\n`
-    +s.items.map(i=>`${i.name} — ${i.qty} x ${i.price} = ${i.price*i.qty}`).join("\n")
-    +`\n\nSubtotal: Rs ${s.subtotal}`+(s.discount?`\nDiscount: Rs ${s.discount}`:"")
-    +`\nTotal: Rs ${s.total}\nPayment: ${s.payment}\n\nShukriya! 🙏`;
-  try{location.href="https://wa.me/?text="+encodeURIComponent(msg);}catch(e){}
+    :`<div class="empty"><div class="ei">📂</div><p>${q?"Kuch nahi mila":"Abhi koi invoice nahi"}</p></div>`;
 }
 /* ===== PREMIUM — WHATSAPP PAR BILL ===== */
 function waNum(p){
@@ -2439,6 +2771,128 @@ function billText(s){
     +"\n\n"+(st.invFooter||"Shukriya! Dobara tashreef layein.")
     +(st.phone?("\n"+(st.storeName||"")+" — "+st.phone):"");
 }
+/* ===== PARCHI KI TASVEER — WhatsApp par photo bana kar bhejne ke liye =====
+   Koi library nahi chahiye: wohi parchi canvas par likh kar PNG bana lete hain,
+   is liye internet band ho to bhi tasveer banti hai. */
+function biWrap(x,t,max){
+  t=String(t==null?"":t);
+  if(!t)return [""];
+  if(!x.measureText||x.measureText(t).width<=max)return [t];
+  const w=t.split(/\s+/),out=[];let cur="";
+  for(let i=0;i<w.length;i++){
+    const t2=cur?(cur+" "+w[i]):w[i];
+    if(!cur||x.measureText(t2).width<=max)cur=t2;
+    else{out.push(cur);cur=w[i];}
+  }
+  if(cur)out.push(cur);
+  return out.length?out:[t];
+}
+function biLines(s){
+  const st=db.settings||{},cl=s.clientId?db.clients.find(c=>c.id===s.clientId):null;
+  const due=saleDue(s),paid=salePaidNow(s),L=[];
+  const P=(t,o)=>{L.push(Object.assign({t:t==null?"":String(t),sz:23},o||{}));};
+  P(st.storeName||"Meri Dukaan",{c:1,sz:40,b:1});
+  if(st.invHeader)P(st.invHeader,{c:1,sz:21,g:1});
+  if(st.invAddr)P(st.invAddr,{c:1,sz:21,g:1});
+  if(st.phone)P(st.phone,{c:1,sz:21,g:1});
+  P("",{hr:1});
+  P("Invoice #"+s.id.slice(-6).toUpperCase(),{sz:24,b:1});
+  P(new Date(s.date).toLocaleString("en-GB"),{g:1});
+  P("Customer: "+(cl?cl.name:"Walk-in"),{g:1});
+  P("",{hr:1});
+  s.items.forEach(i=>{
+    P(i.name,{sz:25,b:1});
+    P("   "+qtyTxt(i.qty,i.unit)+" x "+i.price+(i.dsc?(" - "+i.dsc):""),{g:1,r:rs(lineTotal(i))});
+  });
+  P("",{hr:1});
+  P("Subtotal",{r:rs(s.subtotal)});
+  if(s.discount)P("Discount",{r:"- "+rs(s.discount)});
+  P("TOTAL",{sz:33,b:1,r:rs(s.total)});
+  P("Payment",{g:1,r:payWord(s)});
+  if(s.payment==="aadha")P("Mila",{g:1,r:rs(paid)});
+  if(due>0)P("Baqi (udhaar)",{g:1,r:rs(due)});
+  P("",{hr:1});
+  if(st.invPolicy)P(st.invPolicy,{c:1,sz:19,g:1});
+  P(st.invFooter||"Shukriya! Dobara tashreef layein.",{c:1,sz:21,g:1});
+  return L;
+}
+function billImg(s){
+  const W=576,PD=28,L=biLines(s);
+  const c=document.createElement("canvas");
+  const x=c.getContext&&c.getContext("2d");
+  if(!x||!x.fillText)return "";
+  c.width=W;
+  const fnt=o=>{x.font=(o.b?"bold ":"")+(o.sz||23)+"px sans-serif";};
+  let h=PD;
+  L.forEach(o=>{
+    if(o.hr){o._h=18;h+=18;return;}
+    fnt(o);
+    const rw=o.r?((x.measureText?x.measureText(o.r).width:0)+16):0;
+    o._ls=biWrap(x,o.t,W-2*PD-rw);
+    o._lh=Math.round((o.sz||23)*1.36);
+    o._h=o._ls.length*o._lh;
+    h+=o._h;
+  });
+  c.height=h+PD;
+  const g=c.getContext("2d");
+  g.fillStyle="#ffffff";g.fillRect(0,0,W,c.height);
+  g.textBaseline="top";
+  let y=PD;
+  L.forEach(o=>{
+    if(o.hr){
+      g.fillStyle="#b9bec7";
+      for(let i=PD;i<W-PD-4;i+=13)g.fillRect(i,y+8,8,2);
+      y+=o._h;return;
+    }
+    g.font=(o.b?"bold ":"")+(o.sz||23)+"px sans-serif";
+    o._ls.forEach((ln,k)=>{
+      g.fillStyle=o.g?"#5b6472":"#111418";
+      g.textAlign=o.c?"center":"left";
+      g.fillText(ln,o.c?W/2:PD,y+k*o._lh);
+    });
+    if(o.r){g.textAlign="right";g.fillStyle="#111418";g.fillText(o.r,W-PD,y);}
+    y+=o._h;
+  });
+  g.textAlign="left";
+  try{return c.toDataURL("image/png");}catch(e){return "";}
+}
+function b64Blob(u,mime){
+  const b=atob(String(u||"").split(",")[1]||"");
+  const a=new Uint8Array(b.length);
+  for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
+  return new Blob([a],{type:mime||"image/png"});
+}
+function billCap(s){
+  return (db.settings.storeName||"Meri Dukaan")+" — Invoice #"+s.id.slice(-6).toUpperCase()
+    +"\nTotal: "+rs(s.total)+(saleDue(s)>0?("   Baqi: "+rs(saleDue(s))):"");
+}
+/* Tasveer bhejna: pehle Android app ka raasta, phir browser ka share, akhir mein save */
+async function waImg(id,num){
+  const s=db.sales.find(x=>x.id===id);
+  if(!s){toast("Sale nahi mili");return;}
+  const url=billImg(s);
+  if(!url){toast("Tasveer nahi ban saki — likha hua bill bhej rahe hain");return waBill(id,num);}
+  const fn="Bill-"+s.id.slice(-6).toUpperCase()+".png",cap=billCap(s);
+  log("💬","Bill ki tasveer bheji — #"+s.id.slice(-6).toUpperCase());
+  if(window.AND){
+    let ok=false;
+    try{if(AND.shareImage){AND.shareImage(fn,String(url).split(",")[1]||"",cap);ok=true;}}catch(e){ok=false;}
+    if(ok){toast("WhatsApp khul raha hai — grahak chunein");return;}
+    toast("App ka purana version — likha hua bill bhej rahe hain");
+    return waBill(id,num);
+  }
+  try{
+    if(navigator.share&&navigator.canShare&&window.File){
+      const f=new File([b64Blob(url)],fn,{type:"image/png"});
+      if(navigator.canShare({files:[f]})){await navigator.share({files:[f],text:cap});return;}
+    }
+  }catch(e){if(e&&e.name==="AbortError")return;}
+  try{
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(b64Blob(url));a.download=fn;a.click();
+    toast("Tasveer save ho gayi — WhatsApp mein 📎 se bhej dein");
+  }catch(e){toast("Tasveer save nahi hui");}
+}
 function waBill(id,num){
   const s=db.sales.find(x=>x.id===id);
   if(!s){toast("Sale nahi mili");return;}
@@ -2447,23 +2901,58 @@ function waBill(id,num){
   log("\ud83d\udcac","Bill WhatsApp par bheja — #"+s.id.slice(-6).toUpperCase()+(n?(" · "+n):""));
   try{location.href="https://wa.me/"+n+"?text="+encodeURIComponent(billText(s));}catch(e){}
 }
+let waMode="img";                                  /* "img" = tasveer, "txt" = likha hua */
+function waSetMode(m,id){
+  waMode=(m==="txt")?"txt":"img";
+  const a=$("waSegI"),b=$("waSegT");
+  if(a)a.className=waMode==="img"?"on":"";
+  if(b)b.className=waMode==="txt"?"on":"";
+  waDrawPrev(id);
+}
+function waDrawPrev(id){
+  const box=$("waPrev");if(!box)return;
+  const s=db.sales.find(x=>x.id===id);if(!s)return;
+  if(waMode==="txt"){
+    box.innerHTML=`<div class="box" style="padding:13px;white-space:pre-wrap;font-size:12.5px;
+      color:var(--mut);max-height:200px;overflow:auto">${esc(billText(s))}</div>
+      <p style="font-size:12px;color:var(--mut);text-align:center;margin-top:9px">
+        Likha hua bill seedha usi number par chala jayega.</p>`;
+    return;
+  }
+  const u=billImg(s);
+  box.innerHTML=(u?`<div style="text-align:center"><img src="${u}" alt="Parchi"
+      style="width:100%;max-width:240px;border:1px solid var(--line);border-radius:12px"></div>`
+    :`<div class="note">Is phone par tasveer nahi ban rahi — "Likha hua" chunein.</div>`)
+    +`<p style="font-size:12px;color:var(--mut);text-align:center;margin-top:9px">
+        Tasveer bhejte waqt WhatsApp khud grahak poochta hai — number likhna zaroori nahi.</p>`;
+}
 function waAsk(id){
   if(!needPro("WhatsApp par Bill"))return;
   const s=db.sales.find(x=>x.id===id);
   if(!s){toast("Sale nahi mili");return;}
   const cl=s.clientId?db.clients.find(c=>c.id===s.clientId):null;
   const ph=(cl&&cl.phone)||"";
+  waMode=(db.settings.waMode==="txt")?"txt":"img";
   sheet("WhatsApp par Bill",`
-    <p style="font-size:13px;color:var(--mut);margin:-6px 0 12px">Grahak ka number likhein — bill seedha usi ko chala jayega.</p>
+    <p style="font-size:13px;color:var(--mut);margin:-6px 0 12px">Parchi kis tarah bhejni hai?</p>
+    <div class="seg">
+      <button id="waSegI" class="${waMode==="img"?"on":""}" onclick="waSetMode('img','${s.id}')">🖼 Tasveer</button>
+      <button id="waSegT" class="${waMode==="txt"?"on":""}" onclick="waSetMode('txt','${s.id}')">💬 Likha hua</button>
+    </div>
     <div class="fld"><label>Grahak ka WhatsApp number</label>
       <input id="waNo" type="tel" inputmode="tel" placeholder="03xx xxxxxxx" value="${esc(ph)}">
       <div class="fe" id="e_waNo" hidden></div></div>
     ${cl?`<div class="note">👤 ${esc(cl.name)}${ph?"":" — is grahak ka number app mein nahi hai"}</div>`:
       `<div class="note">Walk-in sale — number likhein ya khali chhor kar contact chunein.</div>`}
-    <div class="box" style="padding:13px;margin-top:12px;white-space:pre-wrap;font-size:12.5px;color:var(--mut);max-height:210px;overflow:auto">${esc(billText(s))}</div>
+    <div id="waPrev" style="margin-top:12px"></div>
     <button class="btn" style="margin-top:13px" onclick="waSend('${s.id}')">📲 Bhejo</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="waBill('${s.id}','')">📇 Contact List se Chunein</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="waPick('${s.id}')">📇 Contact List se Chunein</button>
     <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Band Karo</button>`,"💬");
+  waDrawPrev(id);
+}
+function waPick(id){
+  closeSheet();
+  if(waMode==="img")waImg(id,"");else waBill(id,"");
 }
 function waSend(id){
   const v=(($("waNo")||{}).value||"").trim();
@@ -2473,7 +2962,9 @@ function waSend(id){
     const c=db.clients.find(x=>x.id===s.clientId);
     if(c&&!String(c.phone||"").trim()){c.phone=v;saveDB();}   /* aage ke liye yaad rakh lo */
   }
-  closeSheet();waBill(id,v);
+  if(db.settings.waMode!==waMode){db.settings.waMode=waMode;saveDB();}
+  closeSheet();
+  if(waMode==="img")waImg(id,v);else waBill(id,v);
 }
 function openWaPick(){
   if(!needPro("WhatsApp par Bill"))return;
@@ -3063,12 +3554,14 @@ async function startScan(from){
 function payLabel(s){
   return {cash:"💵 Naqad",udhaar:"📋 Udhaar",online:"📱 Online",aadha:"🤝 Aadha (partial)"}[s.payment]||"—";
 }
+/* Parchi/tasveer ke liye saaf lafz — thermal printer aur canvas emoji theek nahi chhapte */
+function payWord(s){return payLabel(s).replace(/[^\x20-\x7e]/g,"").trim()||"-";}
 function openSaleDone(id){
   const s=db.sales.find(x=>x.id===id);if(!s)return;
   const cl=s.clientId?db.clients.find(c=>c.id===s.clientId):null;
   const due=saleDue(s);
   sheet("Sale Ho Gayi! 🎉",`
-    <p style="font-size:14px;color:var(--mut);margin:-6px 0 13px">Invoice banana chahte hain?</p>
+    <p style="font-size:14px;color:var(--mut);margin:-6px 0 13px">Parchi grahak ko bhejein ya chhapein.</p>
     <div class="box" style="padding:14px">
       <div class="kv"><span>Customer</span><b>${cl?esc(cl.name):"Walk-in"}</b></div>
       <div class="kv"><span>Items</span><b>${s.items.length}</b></div>
@@ -3076,10 +3569,8 @@ function openSaleDone(id){
       <div class="kv"><span>Payment</span><b>${payLabel(s)}</b></div>
       ${due>0?`<div class="kv"><span>Baqi (udhaar)</span><b style="color:var(--r)">${rs(due)}</b></div>`:""}
     </div>
-    <button class="btn" style="margin-top:14px" onclick="printSale('${s.id}',1)">🖨 Print Karein</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="printSale('${s.id}',0)">📄 Invoice PDF Banao</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="openReceiptPreview('${s.id}')">👁 Pehle Dekho (preview)</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="waAsk('${s.id}')">💬 Grahak ko WhatsApp par Bhejo</button>
+    <button class="btn" style="margin-top:14px" onclick="waAsk('${s.id}')">📲 Grahak ko WhatsApp par Bhejo</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="openReceiptPreview('${s.id}')">👁 Parchi Dekho / Print</button>
     <button class="btn ghost" style="margin-top:10px" onclick="openReturn('${s.id}')">🔄 Sale Wapsi (Return)</button>
     <button class="btn ghost" style="margin-top:10px" onclick="openInvoices()">📂 Saare Invoice</button>
     <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">✕ Nahi Chahiye</button>
@@ -3107,7 +3598,7 @@ function receiptBody(s){
     <tr><td>Subtotal</td><td class="r">${s.subtotal}</td></tr>
     ${s.discount?`<tr><td>Discount</td><td class="r">- ${s.discount}</td></tr>`:""}
     <tr class="tot"><td>TOTAL</td><td class="r">Rs ${s.total}</td></tr>
-    <tr><td>Payment</td><td class="r">${s.payment}</td></tr>
+    <tr><td>Payment</td><td class="r">${payWord(s)}</td></tr>
     ${s.payment==="aadha"?`<tr><td>Mila</td><td class="r">${paid}</td></tr>`:""}
     ${due?`<tr><td>Baqi</td><td class="r">${due}</td></tr>`:""}
   </table>
@@ -3129,7 +3620,7 @@ function printSale(id,auto){
   if(!s){toast("Sale nahi mili");return;}
   fillPrintArea(s,false);
   closeSheet();
-  toast(auto?"\U0001f5a8 Print dialog khul raha hai…":"\U0001f4c4 Print dialog mein 'Save as PDF' chunein");
+  toast(auto?"🖨 Print dialog khul raha hai…":"📄 Print dialog mein 'Save as PDF' chunein");
   setTimeout(()=>{
     try{window.print();}
     catch(e){toast("Print nahi khula — Chrome menu se Print karein");}
@@ -3141,9 +3632,9 @@ function openReceiptPreview(id){
   sheet("Invoice Preview",`
     <p style="font-size:13px;color:var(--mut);margin:-6px 0 12px">Aise chhapegi (${db.settings.printWidth||"58"}mm thermal roll).</p>
     <div id="prevBox" style="display:flex;justify-content:center;margin-bottom:14px"></div>
-    <button class="btn" onclick="printSale('${s.id}',1)">\U0001f5a8 Print / Save as PDF</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="shareReceipt('${s.id}')">\U0001f4f2 WhatsApp Text</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Waapis</button>`,"\U0001f4c4");
+    <button class="btn" onclick="printSale('${s.id}',1)">🖨 Print / Save as PDF</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="waAsk('${s.id}')">📲 WhatsApp par Bhejo</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Waapis</button>`,"📄");
   const pa=fillPrintArea(s,true);
   const box=$("prevBox");
   if(box&&pa&&box.appendChild)box.appendChild(pa);
@@ -4502,7 +4993,7 @@ function snapSave(force){
   const l=snaps(),today=new Date().toISOString().slice(0,10);
   if(!force&&l.length&&l[0].day===today)return;
   l.unshift({id:uid(),day:today,at:Date.now(),
-    sales:db.sales.length,products:db.products.length,data:JSON.stringify(db)});
+    sales:db.sales.length,products:db.products.length,data:snapData()});
   while(l.length>7)l.pop();
   try{localStorage.setItem(SNAPKEY,JSON.stringify(l));}catch(e){}
 }
@@ -4528,8 +5019,9 @@ async function restoreSnap(id){
      note:"Mojooda data ki bhi copy khud-bakhud mehfooz reh jayegi."}))return;
   try{
     bkSafe("Restore se pehle");
-    const d=JSON.parse(s.data);
+    const d=JSON.parse(s.data),_oldI=db;
     db=Object.assign(clone(DEF),d,{settings:Object.assign({},DEF.settings,d.settings||{})});
+    imgReJoin(_oldI);
     cart=[];resetSale();saveDB();closeSheet();applyTheme();render();
     log("♻️","Snapshot restore — "+new Date(s.at).toLocaleDateString("en-GB"));
     toast("Data wapas aa gaya ✓");
@@ -5075,7 +5567,7 @@ async function doSignup(){
     try{ const l=snaps();
       l.unshift({id:uid(),day:new Date().toISOString().slice(0,10),at:Date.now(),
         note:(db.settings.storeName||"Purani dukaan")+" (nayi dukaan banane se pehle)",
-        sales:db.sales.length,products:db.products.length,data:JSON.stringify(db)});
+        sales:db.sales.length,products:db.products.length,data:snapData()});
       while(l.length>7)l.pop();
       localStorage.setItem(SNAPKEY,JSON.stringify(l));
     }catch(e){}
@@ -6078,7 +6570,9 @@ function doRestore(inp){
       const d=JSON.parse(r.result);
       if(!d.products||!d.sales)throw 0;
       bkSafe("File restore se pehle");
+      const _oldI=db;
       db=Object.assign(clone(DEF),d,{settings:Object.assign({},DEF.settings,d.settings||{})});
+      imgReJoin(_oldI);
       cart=[];resetSale();
       saveDB();closeSheet();applyTheme();render();toast("Data restore ho gaya ✓");
     }catch(e){toast("File theek nahi hai");}
@@ -6186,8 +6680,8 @@ function doLoadDemo(){
    db.sales.push({id:uid(),date:now-3600000,items:it,subtotal:sub,discount:0,total:sub,
      payment:"aadha",paidCash:200,paidVia:"cash",clientId:"c1"});
    db.clients[1].txns.push({id:uid(),type:"debit",amount:sub-200,note:"Dall mong, Biscuit Pack",date:now-3600000});}
-  log("\U0001f9ea","Demo data load");
-  log("\U0001f4e5","Kharidari Rs 2280 — Shahid Dairy");
+  log("🧪","Demo data load");
+  log("📥","Kharidari Rs 2280 — Shahid Dairy");
   db.expenses.push({id:uid(),date:now-2*D,amount:1800,note:"Bijli bill",via:"cash"});
   db.expenses.push({id:uid(),date:now-1*D,amount:300,note:"Chai pani",via:"cash"});
   db.expenses.push({id:uid(),date:now,amount:450,note:"Rickshaw kiraya",via:"online"});

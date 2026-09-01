@@ -15,6 +15,7 @@ import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintManager;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
@@ -28,6 +29,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewAssetLoader;
 
 import java.io.File;
@@ -284,6 +286,73 @@ public class MainActivity extends Activity {
       runOnUiThread(new Runnable() {
         public void run() { finish(); }
       });
+    }
+
+    /**
+     * waImg() -> bill ki PNG tasveer WhatsApp ko de do.
+     * WebView mein navigator.share({files}) nahi chalta, is liye tasveer
+     * base64 mein aati hai, cache mein likhi jati hai aur FileProvider ke
+     * zariye ACTION_SEND se bheji jati hai. WhatsApp apna contact picker
+     * khud kholta hai (tasveer ke sath number pehle se chunna mumkin nahi).
+     */
+    @JavascriptInterface
+    public void shareImage(final String name, final String b64, final String caption) {
+      runOnUiThread(new Runnable() {
+        public void run() { doShareImage(name, b64, caption); }
+      });
+    }
+  }
+
+  private void doShareImage(String name, String b64, String caption) {
+    try {
+      byte[] bytes = Base64.decode(b64 == null ? "" : b64, Base64.DEFAULT);
+      if (bytes.length == 0) {
+        toast("Tasveer khali thi");
+        return;
+      }
+      File dir = new File(getCacheDir(), "share");
+      if (!dir.exists()) {
+        dir.mkdirs();
+      }
+      String fn = (name == null || name.length() == 0) ? "bill.png"
+          : name.replaceAll("[^A-Za-z0-9._-]", "_");
+      File f = new File(dir, fn);
+      FileOutputStream fo = new FileOutputStream(f);
+      fo.write(bytes);
+      fo.close();
+
+      Uri u = FileProvider.getUriForFile(this, getPackageName() + ".files", f);
+      Intent send = new Intent(Intent.ACTION_SEND);
+      send.setType("image/png");
+      send.putExtra(Intent.EXTRA_STREAM, u);
+      if (caption != null && caption.length() > 0) {
+        send.putExtra(Intent.EXTRA_TEXT, caption);
+      }
+      send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+      /* WhatsApp mojood ho to seedha usi mein khol do, warna sab apps dikha do. */
+      String pkg = has("com.whatsapp") ? "com.whatsapp"
+          : (has("com.whatsapp.w4b") ? "com.whatsapp.w4b" : null);
+      if (pkg != null) {
+        try {
+          Intent only = new Intent(send);
+          only.setPackage(pkg);
+          startActivity(only);
+          return;
+        } catch (Exception e) { /* neeche chooser chal jayega */ }
+      }
+      startActivity(Intent.createChooser(send, "Parchi bhejein"));
+    } catch (Exception e) {
+      toast("Tasveer bheji nahi ja saki");
+    }
+  }
+
+  private boolean has(String pkg) {
+    try {
+      getPackageManager().getPackageInfo(pkg, 0);
+      return true;
+    } catch (Exception e) {
+      return false;
     }
   }
 

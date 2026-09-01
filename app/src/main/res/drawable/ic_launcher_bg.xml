@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon ka peecha wala hissa. Wohi emerald gradient jo logo mein hai:
+     upar-baayen halka (#0B7A5B) se neeche-daayen bohat gehra (#02291E). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
-        android:angle="270"
-        android:startColor="#10B981"
-        android:endColor="#047857"
+        android:angle="315"
+        android:startColor="#0B7A5B"
+        android:centerColor="#055C43"
+        android:endColor="#02291E"
         android:type="linear" />
 </shape>

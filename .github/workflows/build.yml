@@ -46,7 +46,13 @@ jobs:
           done
           ls -l app/src/main/assets/fonts/ || echo "FONT NAHI MILA — app phir bhi chalegi"
 
+      # Har build ka versionCode barhta hai (1, 2, 3...) — bilkul Play Store ki tarah.
+      # Isi wajah se nayi APK purani ke UPAR update ho jati hai, uninstall ki zaroorat nahi.
+      # versionCode kabhi kam nahi hona chahiye, aur run_number hamesha barhta hai.
       - name: APK banao (debug)
+        env:
+          MD_VC: ${{ github.run_number }}
+          MD_VN: 1.0.${{ github.run_number }}
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Naam theek karo
@@ -71,5 +77,5 @@ jobs:
         run: |
           gh release delete apk --yes --cleanup-tag || true
           gh release create apk "${{ steps.name.outputs.apk }}" \
-            --title "Meri Dukaan — taaza APK (build ${{ github.run_number }})" \
-            --notes "Phone par ye APK download kar ke install karein. Purana data mehfooz rehta hai."
+            --title "Meri Dukaan — taaza APK (version 1.0.${{ github.run_number }})" \
+            --notes "Purani app ke UPAR install karein — uninstall karne ki zaroorat nahi, saara data mehfooz rehta hai. (versionCode ${{ github.run_number }})"

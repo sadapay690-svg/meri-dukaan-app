@@ -107,6 +107,11 @@ configurations.configureEach {
 dependencies {
     implementation 'androidx.webkit:webkit:1.11.0'
 
+    /* FileProvider — bill ki tasveer WhatsApp ko dene ke liye. webkit ke sath
+       transitively aati hai magar us par bharosa theek nahi, is liye saaf likh
+       di gayi hai warna `androidx.core.content.FileProvider` compile nahi hota. */
+    implementation 'androidx.core:core:1.13.1'
+
     /* ComponentActivity = LifecycleOwner, CameraX ko iski zarurat hai */
     implementation 'androidx.activity:activity:1.9.0'
 

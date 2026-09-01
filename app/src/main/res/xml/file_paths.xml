@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider ko sirf itni ijazat hai: app ki apni cache ke andar "share"
+  folder. Bill ki PNG wahin likhi jati hai aur WhatsApp ko ek dafa ki read
+  ijazat ke sath di jati hai. Grahak ka baqi data is raaste se nahi jata.
+-->
+<paths>
+    <cache-path
+        name="share"
+        path="share/" />
+</paths>
