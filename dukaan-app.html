@@ -27,6 +27,9 @@ html[data-theme="dark"]{
   --pu:#a78bfa;--pl:#312e81;
   --bg:#0b1220;--card:#16233a;--ink:#e8eef8;--mut:#94a3b8;--line:#27374f;--soft:#1d2c45;
   --gl:#064e3b;--bl:#1e3a5f;--ol:#4a2409;--rl:#4c1d1d;
+  /* raat wale rang mein gehra sabz nazar nahi aata — halka sabz rakha hai
+     tak code, munafa aur sabz note saaf parhe jayen */
+  --g2:#34d399;
   --sh:0 1px 3px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -836,8 +839,8 @@ window.FB=null;window.FB_ERR="";
 /* ↓ Ye nishan sirf "live update" ke liye hai. Har nayi file publish karne se
    pehle isay 1 barha dein — app khud isi se pehchanti hai ke naya build aaya.
    Neeche APP_BUILD bhi wohi number rakhein.                              */
-/*MERI-DUKAAN-BUILD:3*/
-const APP_BUILD=3;
+/*MERI-DUKAAN-BUILD:4*/
+const APP_BUILD=4;
 const KEY="meriDukaan_v1";
 const DEF={settings:{storeName:"Meri Dukaan",ownerName:"",phone:"",email:"",theme:"light",
     country:"PK",curSym:"Rs",curCode:"PKR",dial:"92",refCode:"",
@@ -5672,7 +5675,7 @@ const ADM_DEF={mpass:0,blocked:false,blockMsg:"",alog:[],
   pfeats:{},
   limits:{products:40,clients:25},
   price:{m:500,q:1350,h:2500,y:4000,l:15000},
-  brand:{app:"Meri Dukaan",dev:"BITHUB Solutions",wa:OWNER_WA,ver:"2.0"},
+  brand:{app:"Meri Dukaan",dev:"BITHUB Solutions",wa:OWNER_WA,ver:"2.0",dl:""},
   freeAll:{on:false,until:0,note:""},keys:[]};
 const PERMS=[["sale","🛒","Sale karna"],["stock","📦","Stock badalna / product add"],
   ["udhaar","📋","Udhaar khata chalana"],["reports","📊","Reports dekhna"],
@@ -7028,6 +7031,17 @@ function admBrand2(){
       <label>Support WhatsApp (92...)</label><input id="abWa" inputmode="numeric" value="${esc(b.wa||"")}">
       <label>Version</label><input id="abVer" value="${esc(b.ver||"")}">
       <button class="btn" style="margin-top:12px" onclick="admSaveBrand()">💾 Save</button>`)
+  + acard("🔗 App lene ka link",`
+      <p class="ahint">Jab koi user "Dost Bulao" se WhatsApp par apna code bhejta hai, to ye link
+        us paighaam mein khud lag jata hai — taake dost seedha app le sake.
+        Khali chhorh dein to paighaam mein sirf code jayega.</p>
+      <label>Link (https:// se shuru)</label>
+      <input id="abDl" inputmode="url" placeholder="https://..." value="${esc(b.dl||"")}">
+      <div id="abDlOut" style="margin-top:10px">${appLink()
+        ? `<div class="note ok">✓ Lag raha hai: ${esc(appLink())}</div>`
+        : `<div class="note warn">Abhi koi link nahi — paighaam mein sirf code ja raha hai.</div>`}</div>
+      <button class="btn" style="margin-top:11px" onclick="admSaveBrand()">💾 Save</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="admDlTest()">👁 Paighaam Dekho</button>`)
   + acard("🌐 Default zaban",`
       <div class="agrid">${Object.keys(LANGS).map(k=>
         `<button class="abtn ${curLang()===k?"on":""}" onclick="setLang('${k}')">${LANGS[k]}</button>`).join("")}</div>`)
@@ -7043,8 +7057,21 @@ function admSaveBrand(){
   b.dev=($("abDev").value||"").trim();
   b.wa=($("abWa").value||"").replace(/[^0-9]/g,"");
   b.ver=($("abVer").value||"").trim()||b.ver;
+  const dl=(($("abDl")||{}).value||"").trim();
+  if(dl&&!/^https?:\/\//i.test(dl)){beep(0);toast("Link https:// se shuru hona chahiye");return;}
+  b.dl=dl;
   db.settings.storeName=b.app;
-  saveDB();alog("🏷","Branding update");toast("Save ✓");openAdmin("brand");
+  saveDB();alog("🏷","Branding update"+(dl?" — link laga":""));toast("Save ✓");openAdmin("brand");
+}
+/* jo paighaam user ke WhatsApp par jayega, wo pehle khud dekh lein */
+function admDlTest(){
+  const L=appLink(),c=myRefCode();
+  const msg="Assalam o Alaikum!\nMain apni dukaan ka poora hisaab is app se rakhta hoon — sale, udhaar, stock, sab. "
+    +"Internet band ho to bhi chalti hai.\n\n"
+    +(L?("App yahan se lein:\n"+L+"\n\n"):"Aap bhi chala kar dekhein. ")
+    +"Account banate waqt code ke khane mein ye likh dein:\n\n*"+c+"*\n\nIs se aap ko bhi fayda hoga 🎁";
+  const e=$("abDlOut");
+  if(e)e.innerHTML=`<div class="note${L?" ok":" warn"}" style="white-space:pre-wrap">${esc(msg)}</div>`;
 }
 
 /* ---------- admin log ---------- */
@@ -7335,10 +7362,17 @@ function refCopy(){
   try{navigator.clipboard.writeText(c);toast("Code copy ho gaya ✓");}
   catch(e){toast(c);}
 }
+/* app ka khula download link — admin panel (🏷 Brand) se aik dafa set hota hai.
+   Set ho to har share ke paighaam mein khud lag jata hai. */
+function appLink(){
+  try{const l=(admBrand().dl||"").trim();return /^https?:\/\//i.test(l)?l:"";}catch(e){return "";}
+}
 function refShare(){
-  const c=myRefCode();
+  const c=myRefCode(),L=appLink();
   const msg="Assalam o Alaikum!\nMain apni dukaan ka poora hisaab is app se rakhta hoon — sale, udhaar, stock, sab. "
-    +"Internet band ho to bhi chalti hai.\n\nAap bhi chala kar dekhein. Account banate waqt code ke khane mein ye likh dein:\n\n*"
+    +"Internet band ho to bhi chalti hai.\n\n"
+    +(L?("App yahan se lein:\n"+L+"\n\n"):"Aap bhi chala kar dekhein. ")
+    +"Account banate waqt code ke khane mein ye likh dein:\n\n*"
     +c+"*\n\nIs se aap ko bhi fayda hoga 🎁";
   toast("WhatsApp khul raha hai…");
   try{location.href="https://wa.me/?text="+encodeURIComponent(msg);}catch(e){}
