@@ -489,6 +489,11 @@ input.good{border-color:var(--g)}
 .ahint{font-size:12.5px;color:var(--mut);line-height:1.55;font-weight:600;margin:0 0 10px}
 .ahint code{background:var(--soft);padding:2px 6px;border-radius:6px;font-size:12px}
 .sec2{font-size:12px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin:15px 0 8px}
+/* dost bulao — "kaise chalta hai" ke qadam */
+.rstep{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;padding:9px 0;border-bottom:1px solid var(--line)}
+.rstep:last-child{border-bottom:none}
+.rstep .rn{width:23px;height:23px;border-radius:50%;background:var(--pl);color:var(--pu);font-weight:800;
+  font-size:12px;display:grid;place-items:center;flex-shrink:0;margin-top:1px}
 .agrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .abtn{padding:12px 10px;border:1px solid var(--line);border-radius:12px;background:var(--soft);
   font-family:inherit;font-size:13px;font-weight:800;color:var(--ink);cursor:pointer}
@@ -592,7 +597,7 @@ input.good{border-color:var(--g)}
         <button class="qab" onclick="openWaPick()"><div class="c gr">💬</div><span>WhatsApp Bill</span></button>
         <button class="qab" onclick="openAudit()"><div class="c pu">👀</div><span>Nigrani</span></button>
         <button class="qab" onclick="openMonthly()"><div class="c bl">📅</div><span>Mahana</span></button>
-        <button class="qab" onclick="openReferral()"><div class="c">💰</div><span>Commission</span></button>
+        <button class="qab" onclick="openReferral()"><div class="c gr">🎁</div><span>Muft Mahine</span></button>
       </div>
 
       <div class="sec"><h3>🧾 HAALIYA SALES (<span id="hRecentCount">0</span>)</h3><a onclick="go('reports')">Sab dekho →</a></div>
@@ -831,11 +836,12 @@ window.FB=null;window.FB_ERR="";
 /* ↓ Ye nishan sirf "live update" ke liye hai. Har nayi file publish karne se
    pehle isay 1 barha dein — app khud isi se pehchanti hai ke naya build aaya.
    Neeche APP_BUILD bhi wohi number rakhein.                              */
-/*MERI-DUKAAN-BUILD:2*/
-const APP_BUILD=2;
+/*MERI-DUKAAN-BUILD:3*/
+const APP_BUILD=3;
 const KEY="meriDukaan_v1";
 const DEF={settings:{storeName:"Meri Dukaan",ownerName:"",phone:"",email:"",theme:"light",
     country:"PK",curSym:"Rs",curCode:"PKR",dial:"92",refCode:"",
+    myRef:"",refGot:0,refN:0,refLife:0,refChkAt:0,
     openingCash:0,openingOnline:0,lowAlert:true,sound:true,printWidth:"58",lang:"ur_roman",pro:false,proTrialStart:0,proKey:"",proPlan:"",proUntil:0,trialDays:7,usedKeys:[],pin:"",staff:false,cloudAuto:true,cloudWant:"",cloudSkip:false,openSignup:true,cloudMail:"",cloudAt:0,savedAt:0,dirty:false,arAt:0,arN:0,arFileDay:"",arFileAt:0,arFileKB:0,arFileWhere:"",invHeader:"",invAddr:"",invFooter:"",invPolicy:"",demo:0,upSeen:0,upHide:0,upVer:0,upAt:0,upChkAt:0},
   products:[],sales:[],clients:[],expenses:[],vendors:[],purchases:[],logs:[],dayCloses:[],
   users:[],audit:[],returns:[],vpays:[]};
@@ -4616,7 +4622,7 @@ function openSettings(){
     <div class="slist">
       ${srow("🏪","ol","Vendor Purchasing","Kharidari, vendor baqi, stock barhao","closeSheet();openPurchasing()")}
       ${srow("🖨","bl","Printer Setup","Thermal receipt ka size","openPrinter()",(st.printWidth||"58")+"mm ›")}
-      ${srow("💰","","Referral & Earnings","Commission Kamayein","openReferral()")}
+      ${srow("🎁","gr","Dost Bulao — Muft Mahine","Jitne mahine ka plan wo le, utne aap ko muft","openReferral()")}
       ${srow("▶️","rl","Video Tutorials","Kaise chalayein — seekhein","closeSheet();openTutorial()")}
       ${srow("⬇️","bl","Download Software","Phone par app ki tarah lagayein","openInstall()")}
     </div>
@@ -5032,7 +5038,9 @@ function proWA(plan){
   const st=db.settings,k=plan||proPick||planBest()||"y";
   const what=k==="t"?(trialDays()+" din ka FREE TRIAL")
     :(planOf(k)[1]+" plan — "+planShow(k)+(planSave(k)?(" ("+planSave(k)+"% bachat)"):""));
-  const t=`Assalam o Alaikum!%0AMujhe ${encodeURIComponent(admBrand().app||"Meri Dukaan")} ka ${encodeURIComponent(what)} chahiye.%0A%0ADukaan: ${encodeURIComponent(st.storeName||"-")}%0AName: ${encodeURIComponent(st.ownerName||"-")}%0APhone: ${encodeURIComponent(st.phone||"-")}`;
+  const t=`Assalam o Alaikum!%0AMujhe ${encodeURIComponent(admBrand().app||"Meri Dukaan")} ka ${encodeURIComponent(what)} chahiye.%0A%0ADukaan: ${encodeURIComponent(st.storeName||"-")}%0AName: ${encodeURIComponent(st.ownerName||"-")}%0APhone: ${encodeURIComponent(st.phone||"-")}`
+    /* jis ne bataya tha uska code sath jata hai — usay utne mahine free milte hain */
+    +(st.refCode?`%0AMujhe bataya: ${encodeURIComponent(st.refCode)}`:"");
   toast("WhatsApp khul raha hai…");
   try{location.href=`https://wa.me/${ownerWa()}?text=${t}`;}catch(e){}
 }
@@ -6350,6 +6358,20 @@ function admLic(){
       :`<p class="ahint">Ab tak koi key nahi bani.</p>`)
     + (ks.length?`<button class="btn danger" style="margin-top:12px" onclick="admClrKeys()">🗑 Saari keys mita dein</button>`:""))
 
+  + acard("🎁 Dost bulane ka inaam",`
+      <p class="ahint">Jis ne plan liya, uske WhatsApp message mein <b>"Mujhe bataya: CODE"</b> likha hota hai. Wo code yahan dalein — aur jitne mahine ka plan usne liya, utne mahine code wale ko de dein.</p>
+      <label>Jis ne bataya tha — uska code</label>
+      <input id="arefCode" placeholder="MD7KQX9" style="text-transform:uppercase;text-align:center;letter-spacing:2px">
+      <label>Kitne mahine dene hain</label>
+      <div class="chips">${AREF_MO.map(m=>
+        `<button class="chip ${arefMo===m?"on":""}" onclick="arefSet(${m})">${m?(m+" mahine"):"♾️ Hamesha"}</button>`).join("")}</div>
+      <div class="agrid" style="margin-top:11px">
+        <button class="abtn" onclick="admRefSee()">🔍 Pehle Dekho</button>
+        <button class="abtn" onclick="admRefGive()">🎁 Mahine Dein</button>
+      </div>
+      <div id="arefOut" style="margin-top:12px"></div>
+      <p class="ahint" style="margin-top:10px">🔍 batata hai us code ko ab tak kitne mahine mil chuke hain — dobara dene se pehle zaroor dekh lein, warna dohra inaam chala jayega.</p>`)
+
   + acard("💰 Qeemat (pricing)",`
       <label>1 Mahina (Rs)</label><input id="apM" type="number" value="${admPrice().m}">
       <label>3 Mahine (Rs)</label><input id="apQ" type="number" value="${admPrice().q||0}">
@@ -6455,6 +6477,52 @@ function admSavePrice(){
         y=Math.max(0,num("apY")),l=Math.max(0,num("apL"));
   adm().price={m,q,h,y,l};proPick="";saveDB();
   alog("💰","Qeemat "+m+"/"+q+"/"+h+"/"+y+"/"+l);toast("Qeemat save ✓");admRender();
+}
+
+/* ---------- dost bulane ka inaam: code wale ko mahine dena ---------- */
+const AREF_MO=[1,3,6,12,0];      /* 0 = hamesha ke liye */
+var arefMo=1;
+function arefSet(m){arefMo=m;admRender();}
+function arefCode(){return (($("arefCode")||{}).value||"").trim().toUpperCase();}
+function arefShow(h){const e=$("arefOut");if(e)e.innerHTML=h;}
+/* pehle dekho — sirf parhta hai, kuch badalta nahi */
+async function admRefSee(){
+  const c=arefCode();
+  if(!c){toast("Code likhein");beep(0);return;}
+  if(!window.FB||!window.FB.pubGet){beep(0);toast("Net on kar ke dobara koshish karein");return;}
+  arefShow(`<div class="note">Dekh raha hoon…</div>`);
+  let d=null;
+  try{d=await upRace(window.FB.pubGet("ref_"+c));}
+  catch(e){arefShow(`<div class="note bad">Cloud se jawab nahi mila — net dekhein</div>`);beep(0);return;}
+  if(d===UP_TMO){arefShow(`<div class="note bad">Cloud ne jawab nahi diya — dobara koshish karein</div>`);beep(0);return;}
+  if(!d){arefShow(`<div class="note">Is code ko ab tak kuch nahi mila.</div>`);return;}
+  arefShow(`<div class="note ok"><b>${esc(c)}</b><br>Ab tak mile: <b>${d.life?"♾️ Hamesha":((+d.mo||0)+" mahine")}</b>
+    · Log: <b>${+d.n||0}</b>${d.at?"<br>Aakhri baar: "+esc(dtShort(d.at)):""}</div>`);
+}
+/* mahine dena — parho, jama karo, wapis likho */
+async function admRefGive(){
+  const c=arefCode(),mo=arefMo;
+  if(!c){toast("Code likhein");beep(0);return;}
+  if(!window.FB||!window.FB.pubPut){beep(0);toast("Net on kar ke dobara koshish karein");return;}
+  if(!await ask(`Code <b>${esc(c)}</b> ko <b>${mo?(mo+" mahine"):"hamesha ke liye"}</b> muft dena hai?`,
+    {title:"Inaam Dein",icon:"🎁",ok:"Haan, de do",no:"Rehne dein"}))return;
+  arefShow(`<div class="note">Cloud par likh raha hoon…</div>`);
+  let d=null;
+  try{d=await upRace(window.FB.pubGet("ref_"+c));}
+  catch(e){arefShow(`<div class="note bad">Cloud se jawab nahi mila — net dekhein</div>`);beep(0);return;}
+  if(d===UP_TMO){arefShow(`<div class="note bad">Cloud ne jawab nahi diya — 🔍 se dekh kar dobara koshish karein</div>`);beep(0);return;}
+  const old=d||{},was=Math.max(0,+old.mo||0),wasN=Math.max(0,+old.n||0);
+  const o={code:c,mo:(mo?was+mo:was),n:wasN+1,life:(!!old.life||!mo),at:Date.now()};
+  let r=null;
+  try{r=await upRace(window.FB.pubPut("ref_"+c,o));}
+  catch(e){arefShow(`<div class="note bad">Likha nahi gaya — net dekhein, phir 🔍 se dekh lein</div>`);beep(0);return;}
+  if(r===UP_TMO){arefShow(`<div class="note bad">Jawab nahi aaya — 🔍 se dekhein ke laga ya nahi, warna dohra chala jayega</div>`);beep(0);return;}
+  alog("🎁","Inaam: "+c+" ko "+(mo?mo+" mahine":"hamesha"));
+  beep(1);
+  arefShow(`<div class="note ok">✓ <b>${esc(c)}</b> ko <b>${o.life?"♾️ Hamesha":(mo+" mahine")}</b> de diya.<br>
+    Kul mahine: <b>${o.life?"♾️":o.mo}</b> · Log: <b>${o.n}</b><br>
+    Unke phone par khud-bakhud lag jayega — ya wo 🔄 Dobara Dekho daba lein.</div>`);
+  toast("Inaam de diya ✓");
 }
 
 /* ---------- users ---------- */
@@ -7203,21 +7271,128 @@ function openPrinter(){
 }
 function setPrintWidth(w){db.settings.printWidth=w;saveDB();openPrinter();toast(w+"mm set ✓");}
 function openReferral(){
-  const code=(db.settings.storeName||"DUKAAN").replace(/[^A-Za-z0-9]/g,"").toUpperCase().slice(0,6)+"10";
-  sheet("Referral & Earnings",`
-    <div class="hero g"><div class="hl">Commission Kamayein</div><div class="hv">${esc(code)}</div>
-      <div style="font-size:12px;color:var(--mut)">Aap ka referral code</div></div>
-    <p style="font-size:13.5px;color:var(--mut);margin-top:13px">Ye app apne dukaandar doston ko bhejein. Jo bhi aap ke code se app chalayega, uski list aap ke paas rehti hai.</p>
-    <div class="box" style="padding:14px;margin-top:12px">
-      <div class="kv"><span>Referrals</span><b>${(db.settings.referrals||0)}</b></div>
-      <div class="kv"><span>Kamai (est.)</span><b style="color:var(--g)">${rs((db.settings.referrals||0)*100)}</b></div>
+  const st=db.settings,code=myRefCode();
+  const n=Math.max(0,+st.refN||0),got=Math.max(0,+st.refGot||0),life=!!st.refLife;
+  const untilTxt=(st.pro&&!st.proUntil)?"hamesha ke liye":(st.proUntil?dtShort(st.proUntil):"");
+  sheet("Dost Bulao",`
+    <div class="prem">
+      <div class="pk">🎁</div>
+      <div class="pt">Jitne Mahine — Utne Muft</div>
+      <div class="ps">Aap ke code se koi app le aur plan khareede —<br><b>utne hi mahine aap ko bilkul muft</b></div>
     </div>
-    <button class="btn" style="margin-top:12px" onclick="shareApp('${esc(code)}')">📲 WhatsApp par bhejein</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="openSettings()">Waapis</button>`,"💰");
+    <div class="hero g">
+      <div class="hl">Aap ka code</div>
+      <div class="hv">${esc(code)}</div>
+    </div>
+    <button class="btn" onclick="refShare()">📲 WhatsApp par Bhejein</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="refCopy()">📋 Code Copy Karein</button>
+
+    <div class="sec2">Aap ko kya mila</div>
+    <div class="box" style="padding:14px">
+      <div class="kv"><span>Aap ke code se plan liya</span><b>${n} logon ne</b></div>
+      <div class="kv"><span>Muft mahine mile</span><b style="color:var(--g)">${life?"♾️ Hamesha":(got?(got+" mahine"):"0")}</b></div>
+    </div>
+    ${(got||life)
+      ? `<div class="note ok" style="margin-top:2px">🎁 <b>${life?"Hamesha ke liye":(got+" mahine")}</b> muft mil gaye${(untilTxt&&!life)?" — aap ka Premium <b>"+esc(untilTxt)+"</b> tak chalega":""}.</div>`
+      : `<div class="note" style="margin-top:2px;background:var(--pl);color:var(--pu)">Abhi koi nahi. Apna code doston ko bhejein — pehla dost hi aap ko muft mahine dila dega.</div>`}
+    <button class="btn ghost" style="margin-top:11px" onclick="refChk(1)">🔄 Dobara Dekho</button>
+
+    <div class="sec2">Kaise chalta hai</div>
+    <div class="box" style="padding:6px 14px">
+      ${refStep(1,"Aap apna code dost ko WhatsApp par bhejte hain.")}
+      ${refStep(2,"Wo app chalata hai aur account banate waqt aap ka code likh deta hai.")}
+      ${refStep(3,"Wo 6 mahine ka plan leta hai — to <b>aap ko bhi 6 mahine muft</b> mil jate hain.")}
+      ${refStep(4,"Aap ka Premium khud-bakhud barh jata hai. Kuch karna nahi parta.")}
+    </div>
+    <p class="ahint" style="margin-top:12px">Jitne dost lagayenge, utne mahine jama hote rahenge — koi hadd nahi.</p>
+    ${st.refCode
+      ? `<p class="ahint">Aap ko bataya tha: <b>${esc(st.refCode)}</b></p>`
+      : `<div class="sec2">Aap ko kis ne bataya?</div>
+         <p class="ahint">Kisi dost ne aap ko ye app batayi thi? Unka code yahan likh dein — plan lete waqt unhein bhi muft mahine mil jayenge.</p>
+         <input id="refWho" placeholder="Unka code" style="text-transform:uppercase;text-align:center;letter-spacing:2px">
+         <button class="btn ghost" style="margin-top:10px" onclick="refSetWho()">💾 Save Karein</button>`}
+    <button class="btn ghost" style="margin-top:10px" onclick="openSettings()">Waapis</button>`,"🎁");
 }
-function shareApp(code){
-  const msg=`Assalam o alaikum! Main apni dukaan ka hisaab is app se rakhta hoon — sale, stock, udhaar sab.\nOffline chalti hai, internet ki zaroorat nahi.\nMera referral code: ${code}`;
+function refStep(n,t){
+  return `<div class="rstep"><div class="rn">${n}</div><div>${t}</div></div>`;
+}
+/* ---- apna code: aik dafa banta hai, phir kabhi nahi badalta ---- */
+const REF_A="ACDEFGHJKLMNPQRTUVWXY3456789";   /* aankh ko dhoka dene wale harf (B,I,O,S,Z,0,1,2) nahi */
+function myRefCode(){
+  const st=db.settings;
+  if(st.myRef)return st.myRef;
+  let seed="";
+  try{const u=(window.FB&&window.FB.user)?window.FB.user():null;if(u&&u.uid)seed=String(u.uid);}catch(e){}
+  if(!seed)seed=(st.email||st.cloudMail||"")+"|"+(st.storeName||"")+"|"+Date.now()+"|"+Math.random();
+  let x=hsh(seed),o="";
+  for(let i=0;i<5;i++){o+=REF_A.charAt(x%REF_A.length);x=Math.floor(x/REF_A.length)+hsh(seed+"#"+i);}
+  st.myRef="MD"+o;
+  dbWrite();
+  return st.myRef;
+}
+function refCopy(){
+  const c=myRefCode();
+  try{navigator.clipboard.writeText(c);toast("Code copy ho gaya ✓");}
+  catch(e){toast(c);}
+}
+function refShare(){
+  const c=myRefCode();
+  const msg="Assalam o Alaikum!\nMain apni dukaan ka poora hisaab is app se rakhta hoon — sale, udhaar, stock, sab. "
+    +"Internet band ho to bhi chalti hai.\n\nAap bhi chala kar dekhein. Account banate waqt code ke khane mein ye likh dein:\n\n*"
+    +c+"*\n\nIs se aap ko bhi fayda hoga 🎁";
+  toast("WhatsApp khul raha hai…");
   try{location.href="https://wa.me/?text="+encodeURIComponent(msg);}catch(e){}
+}
+function refSetWho(){
+  const v=(($("refWho")||{}).value||"").trim().toUpperCase();
+  if(!v){toast("Unka code likhein");beep(0);return;}
+  if(v===myRefCode()){toast("Ye to aap ka apna code hai");beep(0);return;}
+  db.settings.refCode=v;saveDB();
+  beep(1);toast("Save ho gaya ✓");
+  openReferral();
+}
+/* ---- cloud se dekho: kitne mahine muft bane, aur khud lagao ---- */
+var refBusy=0;
+async function refChk(manual){
+  const st=db.settings,code=myRefCode();
+  if(refBusy){if(manual)toast("Pehle wala kaam chal raha hai…");return 0;}
+  if(!window.FB||!window.FB.pubGet){if(manual){beep(0);toast("Net on kar ke dobara koshish karein");}return 0;}
+  if(!manual&&st.refChkAt&&Date.now()-st.refChkAt<REF_EVERY)return 0;
+  refBusy=1;
+  let d=null;
+  /* har cloud sawal par waqt ki hadd — warna taala hamesha ke liye phans jata hai */
+  try{d=await upRace(window.FB.pubGet("ref_"+code));}
+  catch(e){refBusy=0;if(manual){beep(0);toast("Cloud se jawab nahi mila — net dekhein");}return 0;}
+  refBusy=0;
+  if(d===UP_TMO){if(manual){beep(0);toast("Cloud ne jawab nahi diya — net dekh kar dobara koshish karein");}return 0;}
+  st.refChkAt=Date.now();
+  if(!d){dbWrite();if(manual)toast("Abhi kisi ne aap ke code se plan nahi liya");return 0;}
+  st.refN=Math.max(0,+d.n||0);
+  const life=!!d.life,mo=Math.max(0,+d.mo||0),got=Math.max(0,+st.refGot||0);
+  const already=!!(st.pro&&!st.proUntil);          /* pehle se hamesha ke liye khula hai */
+  if(life){
+    st.refGot=mo;st.refLife=1;
+    if(already){dbWrite();if(manual)toast("Aap ka Premium pehle se hamesha ke liye khula hai ✓");return 0;}
+    st.pro=true;st.proUntil=0;
+    saveDB();log("🎁","Dost bulane ka inaam — Premium hamesha ke liye");
+    beep(1);closeSheet();
+    toast("🎁 Aap ke code se plan liya gaya — Premium hamesha ke liye khul gaya ✓");
+    render();return 1;
+  }
+  if(mo>got){
+    const add=mo-got;
+    st.refGot=mo;
+    if(already){dbWrite();if(manual)toast("Aap ka Premium pehle se hamesha ke liye khula hai ✓");return 0;}
+    const base=Math.max(Date.now(),+st.proUntil||0);
+    st.pro=true;st.proUntil=base+add*30*86400000;
+    saveDB();log("🎁","Dost bulane ka inaam — "+add+" mahine muft");
+    beep(1);closeSheet();
+    toast("🎁 "+add+" mahina Premium muft mil gaya ✓");
+    render();return 1;
+  }
+  dbWrite();
+  if(manual)toast(st.refN?("Ab tak "+st.refN+" logon ne aap ke code se plan liya"):"Abhi kisi ne aap ke code se plan nahi liya");
+  return 0;
 }
 function openInstall(){
   sheet("Download / Install",`
@@ -7500,6 +7675,7 @@ function doLoadDemo(){
 const UP_MINLEN=120000;        /* is se chhoti file app nahi ho sakti */
 const UP_MAXPARTS=16;          /* is se ziyada tukre = kuch ghalat hai */
 const UP_EVERY=6*3600000;      /* har 6 ghante khud dekh lo */
+const REF_EVERY=6*3600000;     /* dost bulane ka inaam bhi har 6 ghante dekh lo */
 var upMeta=null,upBusy=0,upTmr=null;
 
 function ANDx(){try{return window.AND||null;}catch(e){return null;}}
@@ -7706,10 +7882,17 @@ function upBoot(){
   upTmr=setInterval(function(){upChk(0);},UP_EVERY);
   try{window.addEventListener("online",function(){setTimeout(function(){upChk(0);},4000);});}catch(e){}
 }
+/* dost bulane ka inaam bhi chupke se aata rehta hai */
+var refTmr=null;
+function refBoot(){
+  if(refTmr)clearInterval(refTmr);
+  setTimeout(function(){try{refChk(0);}catch(e){}},16000);
+  refTmr=setInterval(function(){try{refChk(0);}catch(e){}},REF_EVERY);
+}
 
 /* ---------- start ---------- */
 applyTheme();admMigrate();buildNav();applyLang();watchLang();syncWatchOn();
-if(authGate()){go("home");snapSave();bkDaily();lockGate();myDev();setTimeout(liveStart,2500);}
+if(authGate()){go("home");snapSave();bkDaily();lockGate();myDev();setTimeout(liveStart,2500);refBoot();}
 upHealthy();upBoot();
 </script>
 </body>
