@@ -831,8 +831,8 @@ window.FB=null;window.FB_ERR="";
 /* ↓ Ye nishan sirf "live update" ke liye hai. Har nayi file publish karne se
    pehle isay 1 barha dein — app khud isi se pehchanti hai ke naya build aaya.
    Neeche APP_BUILD bhi wohi number rakhein.                              */
-/*MERI-DUKAAN-BUILD:1*/
-const APP_BUILD=1;
+/*MERI-DUKAAN-BUILD:2*/
+const APP_BUILD=2;
 const KEY="meriDukaan_v1";
 const DEF={settings:{storeName:"Meri Dukaan",ownerName:"",phone:"",email:"",theme:"light",
     country:"PK",curSym:"Rs",curCode:"PKR",dial:"92",refCode:"",
@@ -2039,14 +2039,13 @@ function syncBody(){
     ${srow("📱","gr","Is phone par login",crGet()?"Yaad hai — app khulte hi khud juR jayega":"Yaad nahi — har baar password lagega","","")}
     ${swrow("♻️","gr","Auto Backup",cloudAuto()?"Har tabdeeli khud online jati hai":"Band hai — haath se sync karein",cloudAuto(),"cloudSetAuto("+(cloudAuto()?"false":"true")+")")}
   </div>
-  <div class="sylab">🏦 CLOUD ARCHIVE — HAR ENTRY ALAG MEHFOOZ</div>
+  <div class="sylab">🏦 PURANA HISAAB MEHFOOZ</div>
   <div class="sycard">
-    ${srow("🏦","gr","Cloud par entries",arCount()+" entry mehfooz"+(db.settings.arAt?(" · "+ago(db.settings.arAt)):" · pehli koshish baqi"),"arRun(1)","BHEJO")}
-    ${srow("📅","bl","Rozana poori file",db.settings.arFileDay?("Aakhri: "+esc(db.settings.arFileDay)+(db.settings.arFileKB?(" · "+db.settings.arFileKB+" KB"):"")+(db.settings.arFileWhere==="f"?" · muft cloud":"")):"Abhi tak nahi gayi","arFile(1)","FILE")}
-    ${srow("⬇️","ol","Cloud se Poora Record Laao","Naya phone? Sari entries wapis milengi","arRestore(1)")}
-    ${srow("📂","pu","Cloud ki Purani Filein","Kisi bhi din ka poora hisaab wapas lagayein","arFileSheet()")}
+    ${srow("🏦","gr","Cloud par mehfooz",arCount()?(arCount()+" cheezein"+(db.settings.arAt?(" · "+ago(db.settings.arAt)):"")):"Abhi tak nahi bheja","arRun(1)","BHEJO")}
+    ${srow("📅","bl","Rozana Poora Backup",db.settings.arFileDay?("Aakhri: "+esc(String(db.settings.arFileDay).split("-").reverse().join("/"))):"Abhi tak nahi gaya","arFile(1)","BHEJO")}
+    ${srow("⬇️","ol","Poora Hisaab Wapas Laao","Naya phone? Sab kuch wapis milega","arRestore(1)")}
+    ${srow("📂","pu","Kisi Din ka Hisaab Wapas","Har din ki alag copy mehfooz hai","arFileSheet()")}
   </div>
-  <div class="note ok" style="margin-top:10px">🏦 Bank ki tarah har entry ka <b>apna</b> record cloud par jata hai — is liye "aik page 1 MB" wali hadd khatam. Sath hi rozana poori file bhi cloud par chali jati hai.</div>
   <div class="sylab">🛠️ ZAROORI KAAM</div>
   <div class="sycard">
     ${srow("⬇️","ol","Cloud se Data Laao","Naya phone? Sara hisaab wapis lein","cloudPull('ask')")}
@@ -2065,12 +2064,12 @@ function syncBody(){
   <div class="note ${on?"ok":""}" style="margin-top:12px">${on
     ?"🔒 Data sirf aap ke account mein hai — koi doosra ise khol nahi sakta."
     :"🔒 Filhaal sab kuch isi phone mein hai. Phone gum ho ya app delete ho to data wapis nahi milega."}</div>
-  <div class="sylab">🎁 APP UPDATE</div>
+  <div class="sylab">🎁 NAYI CHEEZEIN</div>
   <div class="sycard">
-    ${srow(upNew()?"🎁":"✅",upNew()?"pu":"gr","App ka Build",upTease(),"upSheet()",upNew()?"NAYA":"")}
-    ${srow("🔄","bl","Update Check Karo","Cloud se poochho koi nayi cheez aayi hai","upChk(1)")}
+    ${srow(upNew()?"🎁":"✅",upNew()?"pu":"gr",upNew()?"Nayi Cheezein Tayyar Hain":"App Sab Se Nayi Hai",upTease(),"upSheet()",upNew()?"NAYA":"")}
+    ${srow("🔄","bl","Nayi Cheezein Dekho","Koi naya kaam aaya hai ya nahi","upChk(1)")}
   </div>
-  <div class="note ok" style="margin-top:10px">🎁 Naye feature <b>khud</b> aate hain — Play Store ya APK dobara install karne ki zaroorat nahi. Data bilkul nahi chhoota.</div>
+  <div class="note ok" style="margin-top:10px">🎁 Nayi cheezein <b>khud</b> aa jati hain — app dobara install karne ki zaroorat nahi. Aap ka hisaab bilkul nahi chhoota.</div>
   <button class="btn ghost" style="margin-top:12px" onclick="closeSync()">Waapis</button>`;
 }
 function openSync(){
@@ -6618,7 +6617,6 @@ function admUpMsg(t,cls){
 function admUpSet(t){const e=$("aupSt");if(e)e.innerHTML=t;}
 
 function admUp(){
-  const nat=upNative();
   return acard("🚀 App Update — bina APK naye feature",`
       <p class="ahint">Tarteeb: <b>file chunein → draft upload → khud test → LIVE</b>.
         User ko app dobara install nahi karni parti aur uska data bilkul nahi chhoota.</p>
@@ -6635,10 +6633,10 @@ function admUp(){
         warna app usay naya nahi samjhegi.</p>
       <div id="aupMsg" class="note" style="margin-top:10px" hidden></div>`)
   + acard("2️⃣ Pehle khud test karein",`
-      <p class="ahint">Draft sirf aap ke liye hai — kisi user ke paas nahi jata.
-        ${nat?"":"<b>Ye kaam mobile app (APK) mein hota hai, browser mein nahi.</b>"}</p>
-      <button class="btn ghost" id="aupTry" onclick="admUpTry()" ${nat?"":"disabled"}>🧪 Is Phone par Draft Chalao</button>
-      <button class="btn ghost r" style="margin-top:10px" onclick="upBack()" ${nat?"":"disabled"}>↩️ Purani App Wapas</button>`)
+      <p class="ahint">Draft sirf aap ke liye hai — kisi user ke paas nahi jata.</p>
+      <button class="btn ghost" id="aupTry" onclick="admUpTry()">🧪 Is Phone par Draft Chalao</button>
+      <div id="aupWhy" class="ahint" style="margin:9px 0 0">⏳ Halat maloom kar rahe hain…</div>
+      <button class="btn ghost r" style="margin-top:10px" onclick="upBack()">↩️ Purani App Wapas</button>`)
   + acard("3️⃣ Sab ke liye live karein",`
       <button class="btn" id="aupLive" onclick="admUpLive()" disabled>✅ LIVE Karo (sab users)</button>
       <button class="btn ghost r" id="aupStop" style="margin-top:10px" onclick="admUpStop()" disabled>⛔ Live Update Rok Do</button>
@@ -6691,27 +6689,67 @@ function admUpRulesCopy(){
   catch(e){try{const a=$("aupR");a.select();document.execCommand("copy");toast("Copy ✓");}catch(e2){toast("Copy nahi hui");}}
 }
 
-/* cloud se maujooda halat */
+/* 🧪 ke neeche ki wajah — panel kabhi khamosh na rahe */
+function admUpWhy(nat,draft,prob){
+  const W=$("aupWhy");if(!W)return;
+  W.innerHTML=
+      !nat
+        ? "⚠️ <b>Is app mein update ka nizaam nahi hai.</b> Ye purani APK hai (ya browser hai) — "
+          +"aik dafa <b>naya APK</b> banana parega, uske baad har update bina APK aayega."
+    : prob==="slow"
+        ? "⚠️ Cloud se jawab nahi aaya — net on kar ke panel dobara kholein."
+    : prob==="rules"
+        ? "⚠️ Cloud ne padhne se inkaar kiya — pehle Firestore rules paste karein (neeche 📜 Rules Dekho)."
+    : prob==="nofb"
+        ? "📴 Cloud tayyar nahi — net on kar ke panel dobara kholein."
+    : !(draft&&+draft.ver)
+        ? "Pehle uper 1️⃣ se file chunein aur 📤 Draft Upload karein."
+    : (+draft.ver<=APP_BUILD)
+        ? "⚠️ Draft (<b>Build "+draft.ver+"</b>) is phone ki app (<b>Build "+APP_BUILD+"</b>) se naya nahi hai. "
+          +"File ke andar ka number barha kar dobara upload karein."
+        : "✅ Tayyar — <b>Build "+draft.ver+"</b> is phone par chala kar dekh sakte hain.";
+}
+
+/* cloud se maujooda halat.
+   Ahem: Firestore ka jawab kabhi kabhi aata hi nahi (net dheema, ya rules nahi lagi).
+   Pehle yahan hamesha ka intezaar tha — panel "⏳" par atak jata tha aur saare
+   button mare hue reh jate the. Ab har sawal par 9 second ki hadd hai. */
+var UP_WAIT=9000;                /* cloud se itna intezaar (test mein chhota kar dete hain) */
+const UP_TMO={__tmo:1};
+function upRace(p){return Promise.race([p,new Promise(r=>{setTimeout(function(){r(UP_TMO);},UP_WAIT);})]);}
 async function admUpLoad(){
   const u=(function(){try{return window.FB?window.FB.user():null;}catch(e){return null;}})();
   const ue=$("aupUid");
   if(ue)ue.innerHTML=u?("<b>"+esc(u.uid)+"</b>"):"Cloud mein login nahi — Sync screen se login karein.";
+  const nat=upNative();
+  const bridge="Update ka nizaam is app mein: <b>"+(nat?"✅ mojood":"❌ nahi — naya APK chahiye")+"</b>"
+    +"<br>Is phone par chal raha hai: <b>Build "+APP_BUILD+"</b>"+(upWhereTxt()?" ("+esc(upWhereTxt())+")":"");
+  const T0=$("aupTry");if(T0)T0.disabled=false;
   if(!window.FB||!window.FB.pubGet){
-    admUpSet("📴 Cloud tayyar nahi — net on kar ke panel dobara kholein.");return;
+    admUpSet(bridge+"<br>📴 Cloud tayyar nahi — net on kar ke panel dobara kholein.");
+    admUpWhy(nat,null,"nofb");return;
   }
-  let live=null,draft=null,hist=null;
-  try{live=await window.FB.pubGet("latest");}catch(e){}
-  try{draft=await window.FB.pubGet("draft");}catch(e){}
-  try{hist=await window.FB.pubGet("hist");}catch(e){}
+  let slow=0,err="";
+  const get=async id=>{
+    try{const r=await upRace(window.FB.pubGet(id));
+      if(r===UP_TMO){slow=1;return null;}
+      return r;}
+    catch(e){err=String((e&&e.message)||e);return null;}
+  };
+  const live=await get("latest"),draft=await get("draft"),hist=await get("hist");
+  const rul=/permission|insufficient|denied/i.test(err);
   admPub={live:live||null,draft:draft||null,hist:(hist&&hist.list)||[]};
-  admUpSet(
-     "Is phone par chal raha hai: <b>Build "+APP_BUILD+"</b>"+(upWhereTxt()?" ("+esc(upWhereTxt())+")":"")
+  admUpSet(bridge
    +"<br>Sab users ke liye LIVE: <b>"+(live&&live.ver?("Build "+live.ver+(live.at?" · "+esc(ago(live.at)):"")):"koi nahi")+"</b>"
-   +"<br>Draft (test ke liye): <b>"+(draft&&draft.ver?("Build "+draft.ver+(draft.size?" · "+Math.round(draft.size/1024)+" KB":"")):"koi nahi")+"</b>");
+   +"<br>Draft (test ke liye): <b>"+(draft&&draft.ver?("Build "+draft.ver+(draft.size?" · "+Math.round(draft.size/1024)+" KB":"")):"koi nahi")+"</b>"
+   +(slow?"<br>⚠️ <b>Cloud ne jawab nahi diya</b> — net dheema ya band lagta hai. Panel dobara kholein.":"")
+   +(rul?"<br>⚠️ <b>Cloud ne inkaar kiya</b> — neeche 📜 Rules Dekho se rules copy kar ke Firebase Console mein paste karein.":""));
   const L=$("aupLive"),S=$("aupStop"),T=$("aupTry");
+  /* 🧪 ka button kabhi "mara hua" na ho — dabane par wajah zaroor maloom ho */
+  if(T)T.disabled=false;
+  admUpWhy(nat,draft,slow?"slow":(rul?"rules":""));
   if(L)L.disabled=!(draft&&+draft.ver&&(!live||+draft.ver>+live.ver));
   if(S)S.disabled=!(live&&+live.ver);
-  if(T)T.disabled=!(upNative()&&draft&&+draft.ver>APP_BUILD);
   const H=$("aupHist");
   if(H)H.innerHTML=admPub.hist.length
     ? admPub.hist.slice(0,10).map(h=>"• <b>Build "+esc(String(h.ver))+"</b> — "+esc(h.note||"—")
@@ -6744,7 +6782,8 @@ function admUpPick(inp){
     if(i)i.innerHTML="✅ <b>"+esc(f.name)+"</b> — Build <b>"+v+"</b> · "+kb+" KB";
     const live=admPub.live,draft=admPub.draft;
     let warn="";
-    if(live&&+live.ver>=v)warn="⚠️ LIVE build ("+live.ver+") isi ke barabar ya barha hai — file mein number 1 barhayein.";
+    if(v<=APP_BUILD)warn="⚠️ Is phone par pehle se <b>Build "+APP_BUILD+"</b> chal raha hai — is file ka number us se barha hona chahiye, warna khud test nahi kar sakenge.";
+    else if(live&&+live.ver>=v)warn="⚠️ LIVE build ("+live.ver+") isi ke barabar ya barha hai — file mein number 1 barhayein.";
     else if(draft&&+draft.ver>=v)warn="⚠️ Draft ("+draft.ver+") isi ke barabar ya barha hai — number 1 barhayein.";
     admUpMsg(warn||("Tayyar. Upload par "+Math.ceil(t.length/UP_CHUNK)+" tukre banenge."),warn?"warn":"ok");
     if(B)B.disabled=false;
@@ -6791,10 +6830,10 @@ async function admUpPush(){
 
 /* khud test karo */
 async function admUpTry(){
+  if(!upNative()){beep(0);toast("Is app mein update ka nizaam nahi — aik dafa naya APK banayein");return;}
   const d=admPub.draft;
-  if(!d||!+d.ver){toast("Pehle draft upload karein");return;}
-  if(+d.ver<=APP_BUILD){toast("Draft ("+d.ver+") is phone se naya nahi hai");return;}
-  if(!upNative()){toast("Ye kaam sirf mobile app mein hota hai");return;}
+  if(!d||!+d.ver){beep(0);toast("Pehle draft upload karein");return;}
+  if(+d.ver<=APP_BUILD){beep(0);toast("Draft (Build "+d.ver+") is phone ki app (Build "+APP_BUILD+") se naya nahi hai");return;}
   closeAdmin();
   upMeta=Object.assign({},d,{note:"🧪 TEST — Build "+d.ver+" ("+(d.note||"draft")+")"});
   upSheet();
@@ -7488,16 +7527,15 @@ function upBad(t,m){
   if(t.slice(0,300).indexOf("<!DOCTYPE")<0)return "ye app ki file nahi lagti";
   if(t.indexOf("</html>")<0)return "file adhoori hai";
   const v=upMark(t);
-  if(!v)return "build ka nishan nahi mila";
-  if(m&&+m.ver&&v!==+m.ver)return "build number mel nahi khata";
-  if(v<=APP_BUILD)return "ye purana build hai";
+  if(!v)return "ye app ki poori file nahi hai";
+  if(m&&+m.ver&&v!==+m.ver)return "file mel nahi khati";
+  if(v<=APP_BUILD)return "ye purani file hai";
   return "";
 }
 function upNew(){return !!(upMeta&&+upMeta.ver>APP_BUILD);}
 function upTease(){
-  if(upNew())return "Naya update tayyar hai — Build "+upMeta.ver;
-  const w=upWhereTxt();
-  return "Build "+APP_BUILD+(w?" · "+w:"")+" — sab se nayi";
+  if(upNew())return esc(String(upMeta.note||"Dekhein kya naya aaya hai"));
+  return db.settings.upChkAt?("Aakhri dafa dekha: "+ago(db.settings.upChkAt)):"Koi nayi cheez baqi nahi";
 }
 
 /* ---------- patti (banner) ---------- */
@@ -7506,7 +7544,7 @@ function upBar(){
   const hide=+((db.settings&&db.settings.upHide)||0);
   if(!upNew()||hide===+upMeta.ver){b.hidden=true;b.innerHTML="";return;}
   b.innerHTML=`<div class="ut"><b>🎁 Nayi cheezein tayyar hain</b>
-      <div class="us">${esc(upMeta.note||("Build "+upMeta.ver))}</div></div>
+      <div class="us">${esc(upMeta.note||"Dekhein kya naya aaya hai")}</div></div>
     <button class="ub" onclick="upSheet()">DEKHO</button>
     <button class="ux" onclick="upBarHide()">✕</button>`;
   b.hidden=false;
@@ -7525,9 +7563,12 @@ async function upChk(manual){
   }
   upBusy=1;
   let m=null;
-  try{m=await window.FB.pubGet("latest");}
+  /* 9 second se ziyada intezaar nahi — warna upBusy hamesha ke liye phans jata tha
+     aur har baar "Pehle wala kaam chal raha hai…" aata rehta tha */
+  try{m=await upRace(window.FB.pubGet("latest"));}
   catch(e){upBusy=0;if(manual){beep(0);toast("Check nahi hua — net dekhein");}return 0;}
   upBusy=0;
+  if(m===UP_TMO){if(manual){beep(0);toast("Cloud ne jawab nahi diya — net dekh kar dobara koshish karein");}return 0;}
   try{db.settings.upChkAt=Date.now();dbWrite();}catch(e){}
   if(!m||!+m.ver||+m.ver<=APP_BUILD){
     upMeta=null;upBar();
@@ -7551,7 +7592,7 @@ function upProg(done,total,txt){
 async function upDown(){
   if(!upNew()){toast("Koi naya update nahi");return 0;}
   if(!upNative()){
-    toast("Ye kaam sirf mobile app (APK) mein hota hai");
+    toast("Ye kaam sirf mobile app mein hota hai");
     return 0;
   }
   if(upBusy){toast("Pehle wala kaam chal raha hai…");return 0;}
@@ -7626,13 +7667,13 @@ async function upBack(){
 
 /* ---------- update ki screen ---------- */
 function upSheet(){
-  const w=upWhereTxt(),nat=upNative();
+  const nat=upNative();
   if(!upNew()){
     sheet("App Update",`
       <div class="note ok">✅ <b>Aap ke paas sab se nayi app hai.</b><br>
-        Build <b>${APP_BUILD}</b>${w?" · "+esc(w):""}</div>
-      ${db.settings.upChkAt?`<p class="ahint" style="margin-top:10px;text-align:center">Aakhri check: ${esc(ago(db.settings.upChkAt))}</p>`:""}
-      <button class="btn" style="margin-top:12px" onclick="upChk(1)">🔄 Dobara Check Karo</button>
+        Koi nayi cheez baqi nahi — sab kuch pohnch chuka hai.</div>
+      ${db.settings.upChkAt?`<p class="ahint" style="margin-top:10px;text-align:center">Aakhri dafa dekha: ${esc(ago(db.settings.upChkAt))}</p>`:""}
+      <button class="btn" style="margin-top:12px" onclick="upChk(1)">🔄 Dobara Dekho</button>
       ${(nat&&APP_BUILD>1)?`<button class="btn ghost r" style="margin-top:10px" onclick="upBack()">↩️ Purani App Wapas Lagayein</button>`:""}
       <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Band Karo</button>`,"⬇️");
     return;
@@ -7640,12 +7681,11 @@ function upSheet(){
   const m=upMeta,kb=Math.round((+m.size||0)/1024);
   sheet("Nayi App Tayyar",`
     <div class="prem"><div class="pk">🎁</div>
-      <div class="pt">Build ${esc(String(m.ver))}</div>
+      <div class="pt">Nayi Cheezein Aa Gayi Hain</div>
       <div class="ps">${esc(m.note||"Nayi cheezein aur behtari")}</div></div>
-    <p class="ahint" style="margin:0">Ab chal raha hai: <b>Build ${APP_BUILD}</b>${w?" ("+esc(w)+")":""}<br>
-      Naya: <b>Build ${esc(String(m.ver))}</b>${kb?" · "+kb+" KB":""}${m.at?" · "+esc(ago(m.at)):""}</p>
+    <p class="ahint" style="margin:0;text-align:center">${kb?kb+" KB":""}${(kb&&m.at)?" · ":""}${m.at?esc(ago(m.at))+" tayyar hui":""}</p>
     <div class="upline"><i id="upPl"></i></div>
-    <p class="ahint" id="upPt" style="text-align:center;margin:0">${nat?"Download ke liye tayyar":"Ye kaam sirf mobile app (APK) mein hota hai"}</p>
+    <p class="ahint" id="upPt" style="text-align:center;margin:0">${nat?"Lene ke liye tayyar":"Ye kaam sirf mobile app mein hota hai"}</p>
     <div class="note ok" style="margin-top:12px">🔒 Aap ka saara hisaab, khatay, stock aur backup <b>waise hi</b> rahenge. Update sirf app ki shakal badalta hai, data ko nahi chhoota.</div>
     ${nat?`<button class="btn" id="upGo" style="margin-top:12px" onclick="upDown()">⬇️ Update Lein</button>`
         :`<div class="note" style="margin-top:12px">📱 Browser mein sirf khabar milti hai. Mobile app kholein.</div>`}
