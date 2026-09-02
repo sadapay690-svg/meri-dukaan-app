@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
@@ -45,11 +46,31 @@ import java.io.OutputStream;
  *   - localStorage survives reliably (file:// storage is flaky/not persistent)
  *   - navigator.mediaDevices.getUserMedia (barcode scanner) only works on https
  *   - Firebase cloud sync refuses to run on file://
+ *
+ * LIVE UPDATE
+ * -----------
+ * A newer copy of that same HTML file can be downloaded from the cloud by the
+ * page itself and handed to upSave(). It is written to filesDir/live/index.html
+ * and served from the SAME origin under /live/, so localStorage — the
+ * shopkeeper's entire ledger — is shared between the bundled and the updated
+ * copy. That is the whole point: features can ship without a new APK and
+ * without touching anyone's data.
+ *
+ * A bad update must never brick the app, so upFail is incremented BEFORE the
+ * live copy is loaded and only reset once the page reports a healthy boot via
+ * bootOk(). Two silent failures and the live copy is thrown away, putting the
+ * shopkeeper back on the APK's own copy.
  */
 public class MainActivity extends Activity {
 
   private static final String ORIGIN = "https://appassets.androidplatform.net";
   private static final String HOME = ORIGIN + "/assets/index.html";
+  private static final String LIVE = ORIGIN + "/live/index.html";
+
+  /** Below this a "downloaded app" is obviously truncated, not an app. */
+  private static final int MIN_APP = 120000;
+  /** Two silent boot failures and the downloaded copy is discarded. */
+  private static final int MAX_FAIL = 2;
 
   private static final int REQ_CAM = 11;
   private static final int REQ_FILE = 12;
@@ -78,6 +99,7 @@ public class MainActivity extends Activity {
     loader = new WebViewAssetLoader.Builder()
         .setDomain("appassets.androidplatform.net")
         .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+        .addPathHandler("/live/", liveHandler())
         .build();
 
     web = new WebView(this);
@@ -110,10 +132,71 @@ public class MainActivity extends Activity {
     setContentView(web);
 
     if (state == null) {
-      web.loadUrl(HOME);
+      web.loadUrl(pickUrl());
     } else {
       web.restoreState(state);
     }
+  }
+
+  /* ---------------- live (downloaded) copy of the app ---------------- */
+
+  private SharedPreferences pref() {
+    return getSharedPreferences("md_up", MODE_PRIVATE);
+  }
+
+  private File liveDir() {
+    return new File(getFilesDir(), "live");
+  }
+
+  private File liveFile() {
+    return new File(liveDir(), "index.html");
+  }
+
+  /** Serves filesDir/live under /live/ on the same secure origin as /assets/. */
+  private WebViewAssetLoader.PathHandler liveHandler() {
+    File d = liveDir();
+    if (!d.exists()) {
+      d.mkdirs();
+    }
+    try {
+      return new WebViewAssetLoader.InternalStoragePathHandler(this, d);
+    } catch (Exception e) {
+      /* Should not happen for getFilesDir(), but never let it stop the app. */
+      return new WebViewAssetLoader.PathHandler() {
+        public WebResourceResponse handle(String path) { return null; }
+      };
+    }
+  }
+
+  /**
+   * Which copy runs: the downloaded one when it looks sane and has not been
+   * failing, otherwise the one inside the APK.
+   */
+  private String pickUrl() {
+    File f = liveFile();
+    if (!f.exists() || f.length() < MIN_APP) {
+      return HOME;
+    }
+    SharedPreferences p = pref();
+    int fails = p.getInt("fail", 0);
+    if (fails >= MAX_FAIL) {
+      dropLive();
+      toast("Naya update theek nahi chala — purani app wapas lag gayi");
+      return HOME;
+    }
+    /* Counted as failed until the page itself says it booted fine. */
+    p.edit().putInt("fail", fails + 1).apply();
+    return LIVE;
+  }
+
+  private void dropLive() {
+    try {
+      File f = liveFile();
+      if (f.exists()) {
+        f.delete();
+      }
+    } catch (Exception e) { /* ignore */ }
+    pref().edit().putInt("fail", 0).putInt("ver", 0).apply();
   }
 
   @Override
@@ -299,6 +382,88 @@ public class MainActivity extends Activity {
     public void shareImage(final String name, final String b64, final String caption) {
       runOnUiThread(new Runnable() {
         public void run() { doShareImage(name, b64, caption); }
+      });
+    }
+
+    /* ---------------- live update ---------------- */
+
+    /** Build number of the downloaded copy, 0 when running the APK's own copy. */
+    @JavascriptInterface
+    public int upVer() {
+      File f = liveFile();
+      if (!f.exists() || f.length() < MIN_APP) {
+        return 0;
+      }
+      return pref().getInt("ver", 0);
+    }
+
+    /** "live" = downloaded copy is running, "apk" = the one inside the APK. */
+    @JavascriptInterface
+    public String upWhere() {
+      String u = web == null ? "" : String.valueOf(web.getUrl());
+      return u.startsWith(LIVE) ? "live" : "apk";
+    }
+
+    /**
+     * Store a freshly downloaded copy of the app. Written to a temp file first
+     * and renamed, so a half-finished write can never become the live copy.
+     */
+    @JavascriptInterface
+    public boolean upSave(String html, int ver) {
+      if (html == null || html.length() < MIN_APP || ver <= 0) {
+        return false;
+      }
+      try {
+        File d = liveDir();
+        if (!d.exists() && !d.mkdirs()) {
+          return false;
+        }
+        File tmp = new File(d, "next.tmp");
+        FileOutputStream fo = new FileOutputStream(tmp);
+        fo.write(html.getBytes("UTF-8"));
+        fo.flush();
+        fo.close();
+        File f = liveFile();
+        if (f.exists() && !f.delete()) {
+          return false;
+        }
+        if (!tmp.renameTo(f)) {
+          tmp.delete();
+          return false;
+        }
+        pref().edit().putInt("ver", ver).putInt("fail", 0).apply();
+        return true;
+      } catch (Exception e) {
+        return false;
+      }
+    }
+
+    /** Page booted and rendered fine — the copy that is running is trusted. */
+    @JavascriptInterface
+    public void bootOk() {
+      pref().edit().putInt("fail", 0).apply();
+    }
+
+    /** Restart into whichever copy should run now. */
+    @JavascriptInterface
+    public void upApply() {
+      runOnUiThread(new Runnable() {
+        public void run() {
+          web.clearCache(false);
+          web.loadUrl(pickUrl());
+        }
+      });
+    }
+
+    /** "Purani app wapas lagao" — throw the downloaded copy away. */
+    @JavascriptInterface
+    public void upReset() {
+      runOnUiThread(new Runnable() {
+        public void run() {
+          dropLive();
+          web.clearCache(false);
+          web.loadUrl(HOME);
+        }
       });
     }
   }
@@ -512,11 +677,14 @@ public class MainActivity extends Activity {
   }
 
   /* ---------------- injected glue ----------------
-   * The HTML file is untouched. These three shims make the browser-only
+   * The HTML file is untouched. These shims make the browser-only
    * bits behave inside a WebView:
    *   1. window.print()            -> Android print / Save-as-PDF
    *   2. <a download href=blob:>   -> real file in Downloads
    *   3. Back button               -> close sheet, else go Home
+   *   4. Urdu Nastaliq font        -> served from the APK's assets
+   *   5. openScan()                -> native ML Kit scanner
+   *   6. Boot health-check         -> AND.bootOk(), the live copy's lifeline
    */
   private static final String GLUE =
       "(function(){if(!window.AND||window.__aReady)return;window.__aReady=1;"
@@ -556,5 +724,17 @@ public class MainActivity extends Activity {
     + "  window.__aScanFrom=f||'sale';"
     + "  try{AND.scanBarcode();}catch(e){openScanManual('');}"
     + "};}"
+    /* 6. Boot health-check — jab tak app waqai chal na jaye, "theek hai" nahi
+     *    kehte. Naya (download kiya hua) app is signal ke bina do baar mein
+     *    khud hat jata hai aur purana wapas aa jata hai. */
+    + "(function(){var n=0;var t=setInterval(function(){"
+    + "  n++;"
+    + "  var okk=false;"
+    + "  try{okk=(window.__mdBoot===1&&typeof render==='function'"
+    + "    &&typeof saveDB==='function'&&typeof db==='object'&&!!db"
+    + "    &&!!document.getElementById('v-home'));}catch(e){okk=false;}"
+    + "  if(okk){clearInterval(t);try{AND.bootOk();}catch(e){}return;}"
+    + "  if(n>25)clearInterval(t);"          /* ~10 second, phir haar maan lo */
+    + "},400);})();"
     + "})();";
 }
