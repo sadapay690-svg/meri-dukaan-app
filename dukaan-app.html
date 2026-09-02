@@ -304,6 +304,7 @@ html[dir="rtl"] .r,html[dir="rtl"] .right{text-align:left}
 .pbnr .bt{flex:1;min-width:0}
 .pbnr .b1{font-weight:800;font-size:14.5px}
 .pbnr .b2{font-size:11.5px;opacity:.92;margin-top:2px}
+.pbnr.gf{background:linear-gradient(135deg,#059669,#0d9488)}
 #printArea .lwrap{display:block}
 #printArea .lbl{width:100%;border:1px dashed #000;padding:1.5mm;text-align:center;margin:0 0 2mm;color:#000;font-size:10px;box-sizing:border-box}
 #printArea .lbl .ln{font-size:8.5px}
@@ -582,6 +583,7 @@ input.good{border-color:var(--g)}
       </div>
 
       <div id="proBnr"></div>
+      <div id="refBnr"></div>
       <div class="sec"><h3>⚡ QUICK ACTIONS</h3></div>
       <div class="qa">
         <button class="qab" onclick="go('sale')"><div class="c">🛍️</div><span>Naya Sale</span></button>
@@ -821,7 +823,16 @@ window.FB=null;window.FB_ERR="";
       pubPut:async(id,o)=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
         await D.setDoc(D.doc(fs,"pub",String(id)),o);return 1;},
       pubPutPart:async(i,o)=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
-        await D.setDoc(D.doc(fs,"pubc",String(i)),o);return 1;}
+        await D.setDoc(D.doc(fs,"pubc",String(i)),o);return 1;},
+      /* ---- DOST BULAO: naye user ki nishani — rj/{uid}
+         "main is code se aaya, aur mera plan itne mahine ka hai".
+         Likhna sirf apna user (uid == doc), padhna sab ke liye — is se
+         bataane wale ke phone par ginti aur inaam khud-bakhud lag jate hain. */
+      rjPut:async o=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        await D.setDoc(D.doc(fs,"rj",u.uid),o);return 1;},
+      rjFind:async code=>{
+        const s=await D.getDocs(D.query(D.collection(fs,"rj"),D.where("code","==",String(code))));
+        const a=[];s.forEach(function(d){a.push(d.data());});return a;}
     };
     try{A.getRedirectResult(auth);}catch(e){}
     if(window.cloudBoot)window.cloudBoot();
@@ -839,12 +850,13 @@ window.FB=null;window.FB_ERR="";
 /* ↓ Ye nishan sirf "live update" ke liye hai. Har nayi file publish karne se
    pehle isay 1 barha dein — app khud isi se pehchanti hai ke naya build aaya.
    Neeche APP_BUILD bhi wohi number rakhein.                              */
-/*MERI-DUKAAN-BUILD:4*/
-const APP_BUILD=4;
+/*MERI-DUKAAN-BUILD:5*/
+const APP_BUILD=5;
 const KEY="meriDukaan_v1";
 const DEF={settings:{storeName:"Meri Dukaan",ownerName:"",phone:"",email:"",theme:"light",
     country:"PK",curSym:"Rs",curCode:"PKR",dial:"92",refCode:"",
-    myRef:"",refGot:0,refN:0,refLife:0,refChkAt:0,
+    myRef:"",refGot:0,refN:0,refLife:0,refChkAt:0,refJoin:0,
+    rjMo:0,rjLife:0,rjAt:0,rjSent:"",
     openingCash:0,openingOnline:0,lowAlert:true,sound:true,printWidth:"58",lang:"ur_roman",pro:false,proTrialStart:0,proKey:"",proPlan:"",proUntil:0,trialDays:7,usedKeys:[],pin:"",staff:false,cloudAuto:true,cloudWant:"",cloudSkip:false,openSignup:true,cloudMail:"",cloudAt:0,savedAt:0,dirty:false,arAt:0,arN:0,arFileDay:"",arFileAt:0,arFileKB:0,arFileWhere:"",invHeader:"",invAddr:"",invFooter:"",invPolicy:"",demo:0,upSeen:0,upHide:0,upVer:0,upAt:0,upChkAt:0},
   products:[],sales:[],clients:[],expenses:[],vendors:[],purchases:[],logs:[],dayCloses:[],
   users:[],audit:[],returns:[],vpays:[]};
@@ -2361,8 +2373,23 @@ function drawProBnr(){
        <div class="b2">Din ka hisaab, udhaar recovery, analytics, Excel export ›</div></div></button>`;
 }
 function proQuick(){ if(paidOn())openPlan(); else openPremium(); }
+/* Home par Dost Bulao ka banner — Premium wale banner ki tarah, magar sabz */
+function drawRefBnr(){
+  const b=$("refBnr");if(!b)return;
+  const st=db.settings;
+  const jn=Math.max(0,+st.refJoin||0),n=Math.max(0,+st.refN||0);
+  const got=Math.max(0,+st.refGot||0),life=!!st.refLife;
+  let i="🎁",t1="Dost Bulao — Mahine Muft Lein",t2="Jitne mahine ka plan wo le, utne hi aap ko muft ›";
+  if(life){i="♾️";t1="Hamesha ke liye Premium muft mil gaya";t2="Dost bulane ka inaam ›";}
+  else if(got>0){t1=got+" mahine Premium muft mil gaye";t2=n+" logon ne aap ke code se plan liya ›";}
+  else if(jn>0){i="🎉";t1=jn+" dost aap ke code se aa gaye";t2="Wo plan lenge to utne mahine aap ko muft ›";}
+  else if(st.pro&&!st.proUntil){t1="Dost Bulao";t2="Apne doston ko bhi ye app batayein ›";}
+  b.innerHTML=`<button class="pbnr gf" onclick="openReferral()"><div class="bi">${i}</div>
+    <div class="bt"><div class="b1">${esc(t1)}</div><div class="b2">${esc(t2)}</div></div></button>`;
+}
 function renderHome(){
   drawProBnr();
+  drawRefBnr();
   if($("qaPro"))$("qaPro").textContent=paidOn()?"Mera Plan":(trialLeft()>0?"Premium Lein":"Premium Lein");
   $("storeName").textContent=db.settings.storeName;
   const t0=today(),t1=t0+86399999;
@@ -4971,8 +4998,13 @@ function applyKey(k){
   }else{
     st.pro=true;
     st.proUntil=k.days?Date.now()+k.days*86400000:0;
+    /* jis dost ne is ka code diya tha, usay itne mahine muft milne chahiye.
+       Trial par kuch nahi — sirf khareeda hua plan gina jata hai. */
+    if(k.days)st.rjMo=Math.max(0,+st.rjMo||0)+Math.max(1,Math.round(k.days/30));
+    else st.rjLife=1;
   }
   saveDB();
+  try{setTimeout(function(){try{rjSay();}catch(e){}},1200);}catch(e){}
   log("⭐","Activate — "+k.code+" ("+keyLabel(k)+")");
   closeSheet();beep(true);
   toast(k.plan==="T"?("🎁 Trial "+(k.days||7)+" din shuru ✓")
@@ -6096,7 +6128,7 @@ async function doSignup(){
   }
   if(first){
     db.settings.storeName=store;db.settings.ownerName=name;db.settings.email=mail;
-    if(ref)db.settings.refCode=ref;
+    if(ref){db.settings.refCode=ref;db.settings.rjAt=Date.now();db.settings.rjSent="";}
     adm().brand.app=store;
     const ph=($("suPhone").value||"").trim();
     if(ph)db.settings.phone=(ph.charAt(0)==="0"||ph.indexOf("+")===0)?ph:("+"+dialCode()+" "+ph);
@@ -6108,6 +6140,9 @@ async function doSignup(){
   toast("Khush aamdeed "+name+" ✓");
   if(key)setTimeout(()=>{try{applyKey(key);}catch(e){}},1600);
   setTimeout(()=>{try{cloudJoin(mail,p1);}catch(e){}},key?2400:900);
+  /* cloud par sign-in hone ke baad apni nishani chhorh dein — tab hi
+     bataane wale ke phone par ginti dikhti hai */
+  if(ref)setTimeout(()=>{try{rjSay();}catch(e){}},key?9000:6000);
 }
 async function doLogin(){
   fClrAll(["lgUser","lgPass"]);
@@ -6742,6 +6777,11 @@ function admUpRulesTxt(){
     +"    match /pubc/{doc} {\n"
     +"      allow read: if true;\n"
     +"      allow write: if request.auth != null && request.auth.uid == '"+id+"';\n"
+    +"    }\n\n"
+    +"    // dost bulao — apni nishani sirf apna user likhta hai, ginti sab parh sakte hain\n"
+    +"    match /rj/{uid} {\n"
+    +"      allow read: if true;\n"
+    +"      allow write: if request.auth != null && request.auth.uid == uid;\n"
     +"    }\n"
     +"  }\n}\n";
 }
@@ -7300,6 +7340,7 @@ function setPrintWidth(w){db.settings.printWidth=w;saveDB();openPrinter();toast(
 function openReferral(){
   const st=db.settings,code=myRefCode();
   const n=Math.max(0,+st.refN||0),got=Math.max(0,+st.refGot||0),life=!!st.refLife;
+  const jn=Math.max(0,+st.refJoin||0);
   const untilTxt=(st.pro&&!st.proUntil)?"hamesha ke liye":(st.proUntil?dtShort(st.proUntil):"");
   sheet("Dost Bulao",`
     <div class="prem">
@@ -7316,12 +7357,15 @@ function openReferral(){
 
     <div class="sec2">Aap ko kya mila</div>
     <div class="box" style="padding:14px">
+      <div class="kv"><span>Aap ke code se app li</span><b>${jn} logon ne</b></div>
       <div class="kv"><span>Aap ke code se plan liya</span><b>${n} logon ne</b></div>
       <div class="kv"><span>Muft mahine mile</span><b style="color:var(--g)">${life?"♾️ Hamesha":(got?(got+" mahine"):"0")}</b></div>
     </div>
     ${(got||life)
       ? `<div class="note ok" style="margin-top:2px">🎁 <b>${life?"Hamesha ke liye":(got+" mahine")}</b> muft mil gaye${(untilTxt&&!life)?" — aap ka Premium <b>"+esc(untilTxt)+"</b> tak chalega":""}.</div>`
-      : `<div class="note" style="margin-top:2px;background:var(--pl);color:var(--pu)">Abhi koi nahi. Apna code doston ko bhejein — pehla dost hi aap ko muft mahine dila dega.</div>`}
+      : (jn
+        ? `<div class="note ok" style="margin-top:2px">🎉 <b>${jn} dost</b> aap ke code se aa gaye. Jab wo plan lenge, utne hi mahine aap ko khud-bakhud mil jayenge.</div>`
+        : `<div class="note" style="margin-top:2px;background:var(--pl);color:var(--pu)">Abhi koi nahi. Apna code doston ko bhejein — pehla dost hi aap ko muft mahine dila dega.</div>`)}
     <button class="btn ghost" style="margin-top:11px" onclick="refChk(1)">🔄 Dobara Dekho</button>
 
     <div class="sec2">Kaise chalta hai</div>
@@ -7381,11 +7425,51 @@ function refSetWho(){
   const v=(($("refWho")||{}).value||"").trim().toUpperCase();
   if(!v){toast("Unka code likhein");beep(0);return;}
   if(v===myRefCode()){toast("Ye to aap ka apna code hai");beep(0);return;}
-  db.settings.refCode=v;saveDB();
+  db.settings.refCode=v;
+  if(!db.settings.rjAt)db.settings.rjAt=Date.now();
+  db.settings.rjSent="";
+  saveDB();
+  try{rjSay();}catch(e){}
   beep(1);toast("Save ho gaya ✓");
   openReferral();
 }
-/* ---- cloud se dekho: kitne mahine muft bane, aur khud lagao ---- */
+/* ============================================================
+   NISHANI — naya user cloud par chhorh deta hai:
+   "main is code se aaya, aur mera plan itne mahine ka hai".
+   Isi nishani se bataane wale ke phone par ginti aur muft mahine
+   khud-bakhud lag jate hain — kisi ko kuch karna nahi parta.
+   ============================================================ */
+function rjTxt(){
+  const st=db.settings,c=(st.refCode||"").trim().toUpperCase();
+  if(!c)return "";
+  return c+"|"+Math.max(0,+st.rjMo||0)+"|"+(st.rjLife?1:0);
+}
+var rjBusy=0;
+async function rjSay(force){
+  const st=db.settings,t=rjTxt();
+  if(!t)return 0;                       /* kisi ne bataya hi nahi — kuch bhejna nahi */
+  if(st.demo)return 0;                  /* nakli demo data cloud par nahi jata */
+  if(rjBusy)return 0;
+  if(!window.FB||!window.FB.rjPut)return 0;
+  try{if(!window.FB.user||!window.FB.user())return 0;}catch(e){return 0;}
+  if(!force&&st.rjSent===t)return 0;    /* pehle hi bhej diya, dobara tang nahi karte */
+  if(!st.rjAt)st.rjAt=Date.now();
+  rjBusy=1;
+  let r=null;
+  try{r=await upRace(window.FB.rjPut({code:t.split("|")[0],
+    mo:Math.max(0,+st.rjMo||0),life:!!st.rjLife,
+    at:+st.rjAt||Date.now(),up:Date.now(),v:1}));}
+  catch(e){rjBusy=0;return 0;}
+  rjBusy=0;
+  if(r===UP_TMO)return 0;
+  st.rjSent=t;dbWrite();
+  return 1;
+}
+/* ---- cloud se dekho: kitne mahine muft bane, aur khud lagao ----
+   Do jagah dekhi jati hain:
+   1) rj  — jin doston ne aap ke code se account banaya (unka phone khud likhta hai)
+   2) pub/ref_CODE — jo haath se (admin panel se) diya gaya ho
+   Jo ziyada ho sirf wohi lagta hai — dono jama nahi hote, warna dohra chala jata. */
 var refBusy=0;
 async function refChk(manual){
   const st=db.settings,code=myRefCode();
@@ -7393,16 +7477,34 @@ async function refChk(manual){
   if(!window.FB||!window.FB.pubGet){if(manual){beep(0);toast("Net on kar ke dobara koshish karein");}return 0;}
   if(!manual&&st.refChkAt&&Date.now()-st.refChkAt<REF_EVERY)return 0;
   refBusy=1;
-  let d=null;
+  /* mauqa mil gaya to apni nishani bhi bhej dein */
+  try{await rjSay();}catch(e){}
+  let d=null,ok=0;
   /* har cloud sawal par waqt ki hadd — warna taala hamesha ke liye phans jata hai */
-  try{d=await upRace(window.FB.pubGet("ref_"+code));}
-  catch(e){refBusy=0;if(manual){beep(0);toast("Cloud se jawab nahi mila — net dekhein");}return 0;}
+  try{d=await upRace(window.FB.pubGet("ref_"+code));if(d===UP_TMO)d=null;else ok=1;}
+  catch(e){d=null;}
+  let L=null,okj=0;
+  if(window.FB.rjFind){
+    try{const q=await upRace(window.FB.rjFind(code));
+      if(q!==UP_TMO&&q&&q.length!==undefined){L=q;okj=1;ok=1;}}catch(e){}
+  }
   refBusy=0;
-  if(d===UP_TMO){if(manual){beep(0);toast("Cloud ne jawab nahi diya — net dekh kar dobara koshish karein");}return 0;}
+  if(!ok){if(manual){beep(0);toast("Cloud se jawab nahi mila — net dekhein");}return 0;}
   st.refChkAt=Date.now();
-  if(!d){dbWrite();if(manual)toast("Abhi kisi ne aap ke code se plan nahi liya");return 0;}
-  st.refN=Math.max(0,+d.n||0);
-  const life=!!d.life,mo=Math.max(0,+d.mo||0),got=Math.max(0,+st.refGot||0);
+  /* doston ki nishaniyon ka hisaab */
+  let jn=0,pd=0,jmo=0,jlife=0;
+  (L||[]).forEach(function(o){
+    if(!o)return;
+    jn++;
+    const m=Math.max(0,+o.mo||0);
+    if(o.life){jlife=1;pd++;}
+    else if(m>0){pd++;jmo+=m;}
+  });
+  const am=d?Math.max(0,+d.mo||0):0,an=d?Math.max(0,+d.n||0):0;
+  /* ginti sirf barhti hai — aik jagah se jawab na aaye to purani ginti mit na jaye */
+  if(okj)st.refJoin=Math.max(0,+st.refJoin||0,jn);
+  st.refN=Math.max(0,+st.refN||0,an,pd);
+  const life=!!(d&&d.life)||!!jlife,mo=Math.max(am,jmo),got=Math.max(0,+st.refGot||0);
   const already=!!(st.pro&&!st.proUntil);          /* pehle se hamesha ke liye khula hai */
   if(life){
     st.refGot=mo;st.refLife=1;
@@ -7425,7 +7527,9 @@ async function refChk(manual){
     render();return 1;
   }
   dbWrite();
-  if(manual)toast(st.refN?("Ab tak "+st.refN+" logon ne aap ke code se plan liya"):"Abhi kisi ne aap ke code se plan nahi liya");
+  if(manual)toast(st.refN?("Ab tak "+st.refN+" logon ne aap ke code se plan liya")
+    :(jn?(jn+" dost aa gaye — jab wo plan lenge to mahine khud lag jayenge")
+        :"Abhi kisi ne aap ke code se plan nahi liya"));
   return 0;
 }
 function openInstall(){
@@ -7920,8 +8024,9 @@ function upBoot(){
 var refTmr=null;
 function refBoot(){
   if(refTmr)clearInterval(refTmr);
+  setTimeout(function(){try{rjSay();}catch(e){}},12000);
   setTimeout(function(){try{refChk(0);}catch(e){}},16000);
-  refTmr=setInterval(function(){try{refChk(0);}catch(e){}},REF_EVERY);
+  refTmr=setInterval(function(){try{rjSay();}catch(e){}try{refChk(0);}catch(e){}},REF_EVERY);
 }
 
 /* ---------- start ---------- */
