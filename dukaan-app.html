@@ -718,6 +718,14 @@ window.FB=null;window.FB_ERR="";
     catch(e){try{await A.setPersistence(auth,A.inMemoryPersistence);}catch(e2){}}
     const fs=D.getFirestore(app);
     const ref=u=>D.doc(fs,"shops",u);
+    /* har entry ka apna document: shops/<uid>/<kism>/<id> — bank ki tarah,
+       is liye 1 MB ki hadd kabhi nahi lagti. */
+    const eref=(u,c,id)=>D.doc(fs,"shops",u,c,String(id));
+    const cref=(u,c)=>D.collection(fs,"shops",u,c);
+    /* Storage (rozana poori file). Na mile to sirf ye hissa band hota hai. */
+    let S=null,st=null;
+    try{ S=await import(V+"firebase-storage.js"); st=S.getStorage(app); }catch(eS){ S=null;st=null; }
+    const fpath=(u,p)=>"shops/"+u+"/"+p;
     window.FB={
       user:()=>auth.currentUser,
       onUser:cb=>A.onAuthStateChanged(auth,cb),
@@ -740,7 +748,36 @@ window.FB=null;window.FB_ERR="";
       del:async()=>{const u=auth.currentUser;if(!u)throw new Error("no-user");await D.deleteDoc(ref(u.uid));},
       watch:cb=>{const u=auth.currentUser;if(!u)return null;
         try{return D.onSnapshot(ref(u.uid),d=>{try{cb(d.exists()?d.data():null);}catch(e){}},()=>{});}
-        catch(e){return null;}}
+        catch(e){return null;}},
+      /* ---- ARCHIVE: har entry apne document mein (bank jaisa) ---- */
+      upMany:async(c,arr)=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        if(!arr||!arr.length)return 0;
+        const b=D.writeBatch(fs);
+        arr.forEach(o=>{b.set(eref(u.uid,c,o.id),o);});
+        await b.commit();return arr.length;},
+      downAll:async c=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        const s=await D.getDocs(cref(u.uid,c));const out=[];
+        s.forEach(d=>{try{out.push(d.data());}catch(e){}});return out;},
+      downOne:async(c,id)=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        const d=await D.getDoc(eref(u.uid,c,id));return d.exists()?d.data():null;},
+      delMany:async(c,ids)=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        if(!ids||!ids.length)return 0;
+        const b=D.writeBatch(fs);
+        ids.forEach(id=>{b.delete(eref(u.uid,c,id));});
+        await b.commit();return ids.length;},
+      /* ---- ROZANA POORI FILE (Firebase Storage) ---- */
+      hasFile:()=>!!st,
+      upFile:async(p,t)=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        if(!st)throw new Error("no-storage");
+        await S.uploadString(S.ref(st,fpath(u.uid,p)),t,"raw",{contentType:"application/json"});return 1;},
+      downFile:async p=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        if(!st)throw new Error("no-storage");
+        const url=await S.getDownloadURL(S.ref(st,fpath(u.uid,p)));
+        const r=await fetch(url);if(!r.ok)throw new Error("file-"+r.status);return await r.text();},
+      fileList:async()=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        if(!st)throw new Error("no-storage");
+        const l=await S.listAll(S.ref(st,fpath(u.uid,"bk")));
+        return l.items.map(i=>i.name).sort().reverse();}
     };
     try{A.getRedirectResult(auth);}catch(e){}
     if(window.cloudBoot)window.cloudBoot();
@@ -758,7 +795,7 @@ window.FB=null;window.FB_ERR="";
 const KEY="meriDukaan_v1";
 const DEF={settings:{storeName:"Meri Dukaan",ownerName:"",phone:"",email:"",theme:"light",
     country:"PK",curSym:"Rs",curCode:"PKR",dial:"92",refCode:"",
-    openingCash:0,openingOnline:0,lowAlert:true,sound:true,printWidth:"58",lang:"ur_roman",pro:false,proTrialStart:0,proKey:"",proPlan:"",proUntil:0,trialDays:7,usedKeys:[],pin:"",staff:false,cloudAuto:true,cloudWant:"",cloudSkip:false,openSignup:true,cloudMail:"",cloudAt:0,savedAt:0,dirty:false,invHeader:"",invAddr:"",invFooter:"",invPolicy:"",demo:0},
+    openingCash:0,openingOnline:0,lowAlert:true,sound:true,printWidth:"58",lang:"ur_roman",pro:false,proTrialStart:0,proKey:"",proPlan:"",proUntil:0,trialDays:7,usedKeys:[],pin:"",staff:false,cloudAuto:true,cloudWant:"",cloudSkip:false,openSignup:true,cloudMail:"",cloudAt:0,savedAt:0,dirty:false,arAt:0,arN:0,arFileDay:"",arFileAt:0,arFileKB:0,arFileWhere:"",invHeader:"",invAddr:"",invFooter:"",invPolicy:"",demo:0},
   products:[],sales:[],clients:[],expenses:[],vendors:[],purchases:[],logs:[],dayCloses:[],
   users:[],audit:[],returns:[],vpays:[]};
 let db=loadDB();
@@ -786,6 +823,8 @@ function saveDB(){
   try{db.settings.savedAt=Date.now();if(!cloudQuiet)db.settings.dirty=true;}catch(e){}
   dbWrite();
   try{if(!cloudQuiet)cloudMark();}catch(e){}
+  /* 🏦 bank jaisa archive: nayi/badli hui har entry apne cloud document mein */
+  try{if(!cloudQuiet)arMark();}catch(e){}
 }
 /* ===== DATA BACHAO — safety net (free, premium ki zaroorat nahi) =====
    1) har khatarnak kaam se pehle phone mein khud-bakhud copy
@@ -866,13 +905,24 @@ function mineNow(){
 }
 function pendOn(){try{return !cloudHold&&!!(db.settings&&db.settings.dirty)&&cloudOn()&&cloudAuto()&&mineNow();}catch(e){return false;}}
 function syncTry(){try{if(pendOn()&&!cloudBusy)cloudPush(0);}catch(e){}}
+/* \ud83c\udfe6 archive ki khud-bakhud koshish: kuch reh gaya ho ya net wapis aaya ho to
+   dobara bhejo, warna sirf aaj ki poori file ka waqt dekho */
+function arTry(){
+  try{
+    if(arBusy||!cloudOn()||!cloudAuto()||cloudHold)return;
+    if(db.settings&&db.settings.demo)return;
+    if(arErr||!db.settings.arAt||(db.settings.savedAt||0)>(db.settings.arAt||0))arRun(0);
+    else arFile(0);
+  }catch(e){}
+}
 var syncWatch=0;
 function syncWatchOn(){
   if(syncWatch)return;syncWatch=1;
-  try{window.addEventListener("online",function(){try{if(pendOn())toast("\ud83c\udf10 Net wapis \u2014 baqi data upload ho raha hai");}catch(e){}setTimeout(syncTry,900);});}catch(e){}
+  try{window.addEventListener("online",function(){try{if(pendOn())toast("\ud83c\udf10 Net wapis \u2014 baqi data upload ho raha hai");}catch(e){}setTimeout(syncTry,900);setTimeout(arTry,2600);});}catch(e){}
   try{document.addEventListener("visibilitychange",function(){if(!document.hidden)setTimeout(syncTry,700);});}catch(e){}
   try{window.addEventListener("focus",function(){setTimeout(syncTry,700);});}catch(e){}
   try{setInterval(syncTry,20000);}catch(e){}
+  try{setInterval(arTry,180000);}catch(e){}
   try{setInterval(()=>{try{syncDot();}catch(e){}},8000);}catch(e){}
 }
 /* ================= CLOUD BACKUP (Firebase) =================
@@ -1066,6 +1116,342 @@ function cloudMsg(e){
     return "Google login sirf app / website par chalta hai \u2014 file se nahi. Email-password use karein.";
   return c||"Kuch masla ho gaya";
 }
+/* ================= CLOUD ARCHIVE — "bank jaisa" nizaam =================
+   Bank aik hi kaghaz par saari history nahi likhta — har transaction ka apna
+   record hota hai. App bhi ab aisa hi karti hai: har entry (sale, kharid,
+   wapsi, kharcha, khata, vendor, product) apne alag cloud document mein
+   jati hai — shops/<uid>/sales/<id> — is liye Firestore ki "aik document =
+   1 MB" wali hadd kabhi nahi lagti aur purana record kabhi zaya nahi hota.
+
+   Chalne ka tareeqa:
+     1) har entry ka chhota hash banao
+     2) pichhli dafa ka naqsha localStorage (UPKEY) mein rakho
+     3) sirf nayi ya badli hui entries bhejo — 200 ke batch mein
+     4) na chale (net band/net kharab) to naqsha waise ka waisa rehta hai,
+        agli dafa khud dobara koshish hoti hai. Kuch chhoot nahi sakta.
+   Asal data phone mein hi rehta hai; ye sirf mehfooz copy hai. */
+const UPKEY="meriDukaan_up";
+const ARK=[["sales","Sales"],["purchases","Kharid"],["returns","Wapsi"],["vpays","Vendor payment"],
+  ["expenses","Kharche"],["clients","Khatay"],["vendors","Vendor"],["products","Products"],
+  ["dayCloses","Din band"],["users","Users"]];
+var arBusy=0,arTmr=null,arErr="";
+function arH(s){let h=5381;s=String(s);
+  for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;
+  return (h>>>0).toString(36);}
+function arMap(){try{return JSON.parse(localStorage.getItem(UPKEY)||"{}")||{};}catch(e){return {};}}
+function arMapSave(m){try{localStorage.setItem(UPKEY,JSON.stringify(m));return 1;}catch(e){return 0;}}
+function arCount(){try{return Object.keys(arMap()).length;}catch(e){return 0;}}
+function arTs(o){try{return +(o.date||o.at||0)||0;}catch(e){return 0;}}
+/* id har entry mein hoti hai; kisi purani entry mein na ho to
+   uske matn se hi pakka id bana lo (har dafa wohi banega) */
+function arId(o){try{return String(o.id||("x"+arH(JSON.stringify(o))));}catch(e){return "x0";}}
+function arClean(k,o,id){
+  const q=Object.assign({},o,{id:(id||arId(o))});
+  if(k==="products"&&q.img){delete q.img;q.imgWas=1;}   /* tasveer rozana file mein jati hai */
+  delete q._uAt;q._k=k;
+  return q;
+}
+function arScan(){
+  const m=arMap(),add=[],seen={};let tot=0;
+  ARK.forEach(function(kk){
+    const k=kk[0],list=db[k]||[];
+    list.forEach(function(o){
+      if(!o||typeof o!=="object")return;
+      tot++;
+      const id=arId(o),key=k+":"+id,d=arClean(k,o,id),h=arH(JSON.stringify(d));
+      seen[key]=1;
+      if(m[key]===h)return;                              /* pehle se mehfooz */
+      add.push({k:k,id:id,h:h,key:key,d:d});
+    });
+  });
+  /* Phone se ghayab entry: cloud par "mit gayi" ka nishan lagao — magar
+     agar aik saath bohat si ghayab hui hain (data reset / backup restore /
+     demo hataana) to KUCH NA KARO, warna poora cloud record mit jata. */
+  const gone=Object.keys(m).filter(function(x){return x.indexOf(":")>0&&!seen[x];}),del=[];
+  if(gone.length&&tot>0&&gone.length<=Math.max(3,Math.round(tot*0.3))){
+    gone.forEach(function(key){
+      const p=key.split(":"),k=p[0],id=p.slice(1).join(":");
+      del.push({k:k,id:id,h:"del",key:key,d:{id:id,_k:k,_del:1}});
+    });
+  }
+  return {add:add,del:del,tot:tot,reset:(gone.length&&!del.length)?gone:null};
+}
+function arWhy(){
+  /* archive kyun band hai — aik hi jagah se faisla, taake UI aur upload ek jaisa sochein */
+  if(!cloudSDK())return "Internet nahi mila";
+  if(!cloudOn())return "Pehle cloud login karein";
+  if(!window.FB.upMany)return "Purani app khuli hai — dobara khol kar dekhein";
+  if(db.settings&&db.settings.demo)return "Demo (nakli) data chal raha hai";
+  return "";
+}
+async function arRun(manual){
+  const why=arWhy();
+  if(why){if(manual){beep(0);toast("ℹ️ "+why);}return 0;}
+  if(arBusy){if(manual)toast("Ruk jaayein… chal raha hai");return 0;}
+  if(!manual&&(cloudHold||!cloudAuto()||!mineNow()))return 0;
+  arBusy=1;clearTimeout(arTmr);
+  if(manual)toast("🏦 Har entry cloud par bheji ja rahi hai…");
+  let done=0;
+  try{
+    const s=arScan();
+    let m=arMap();
+    if(s.reset&&s.reset.length){s.reset.forEach(function(x){delete m[x];});arMapSave(m);}
+    const by={};
+    s.add.concat(s.del).forEach(function(x){(by[x.k]=by[x.k]||[]).push(x);});
+    const ks=Object.keys(by);
+    let er="";
+    for(let i=0;i<ks.length;i++){
+      const list=by[ks[i]];
+      for(let j=0;j<list.length;j+=200){           /* Firestore batch ki hadd 500 */
+        const part=list.slice(j,j+200),now=Date.now();
+        try{
+          await window.FB.upMany(ks[i],part.map(function(x){return Object.assign({},x.d,{_uAt:now});}));
+          /* jo pahunch gaya usi ka naqsha foran likh do — beech mein app band ho
+             jaye to kaam zaya na ho aur dobara wohi se chale */
+          m=arMap();
+          part.forEach(function(x){if(x.h==="del")delete m[x.key];else m[x.key]=x.h;});
+          arMapSave(m);
+          done+=part.length;
+        }catch(e1){
+          /* aik kism atak gayi to baqi kismein phir bhi bhejo — jitna ja sake jaye */
+          er=String(e1&&(e1.code||e1.message)||e1);
+          break;
+        }
+      }
+    }
+    if(er)throw new Error(er);
+    db.settings.arAt=Date.now();db.settings.arN=s.tot;arErr="";
+    cloudQuiet=1;dbWrite();cloudQuiet=0;
+    try{await arFile(0);}catch(e){}
+    try{syncRefresh();}catch(e){}
+    if(manual){beep(1);toast(done?("🏦 "+done+" entry cloud par mehfooz ✓")
+      :"🏦 Sab entries pehle se cloud par mehfooz ✓");}
+    return 1;
+  }catch(e){
+    arErr=String(e&&(e.code||e.message)||e);
+    if(manual){beep(0);toast("Archive nahi hua: "+cloudMsg(arErr));}
+    return 0;
+  }finally{arBusy=0;try{syncDot();}catch(e){}}
+}
+function arMark(){
+  if(!cloudOn()||!cloudAuto())return;
+  clearTimeout(arTmr);
+  arTmr=setTimeout(function(){try{arRun(0);}catch(e){}},6000);
+}
+/* ===== ROZANA POORI FILE CLOUD PAR =====
+   Har entry ka alag document to mehfooz hai, magar aik "poori copy" bhi
+   honi chahiye — tasveeron ke sath — jise kisi bhi din par wapas laga
+   sakein. Do raaste hain:
+     1) Firebase Storage  — shops/<uid>/bk/2026-09-02.json  (Blaze plan par)
+     2) Firestore tukray  — shops/<uid>/files/2026-09-02_0  (bilkul MUFT)
+   Storage na mile (ya inkaar kare) to file khud-bakhud Firestore ke
+   chhote tukron mein chali jati hai — is liye card ki zaroorat nahi. */
+var ARFC=400000;                 /* aik tukra: 4 lakh harf (1 MB se bohat kam) */
+function arFileTxt(day){
+  /* shape wohi hai jo cloudApply() samajhta hai — is liye wapas lagana
+     usi aazmai hui raah se hota hai */
+  return JSON.stringify({v:1,at:Date.now(),day:day,data:JSON.stringify(db),
+    n:cloudCounts(),did:myDev(),shop:(db.settings.storeName||"Dukaan"),
+    ver:(adm().brand.ver||"")});
+}
+function arCut(t){
+  const out=[];
+  for(let i=0;i<t.length;i+=ARFC)out.push(t.slice(i,i+ARFC));
+  return out.length?out:[""];
+}
+async function arFileDocs(day,txt){       /* MUFT raasta: Firestore tukray */
+  if(!window.FB.upMany)throw new Error("no-docs");
+  const cs=arCut(txt),now=Date.now();
+  for(let i=0;i<cs.length;i++)
+    await window.FB.upMany("files",[{id:day+"_"+i,day:day,i:i,of:cs.length,t:cs[i],_uAt:now}]);
+  await window.FB.upMany("filesIdx",[{id:day,day:day,parts:cs.length,
+    kb:Math.round(txt.length/1024),at:now,shop:(db.settings.storeName||"Dukaan")}]);
+  try{await arFileTrim();}catch(e){}
+  return cs.length;
+}
+async function arFileTrim(){              /* purani filein hata do — 20 din rakho */
+  if(!window.FB.downAll||!window.FB.delMany)return 0;
+  const l=await window.FB.downAll("filesIdx");
+  if(!l||l.length<=20)return 0;
+  const old=l.slice().sort(function(a,b){return String(a.id)<String(b.id)?1:-1;}).slice(20);
+  let n=0;
+  for(let i=0;i<old.length;i++){
+    const ids=[];
+    for(let j=0;j<(old[i].parts||1);j++)ids.push(old[i].id+"_"+j);
+    try{await window.FB.delMany("files",ids);await window.FB.delMany("filesIdx",[old[i].id]);n++;}catch(e){}
+  }
+  return n;
+}
+async function arFile(manual){
+  const why=arWhy();
+  if(why){if(manual){beep(0);toast("ℹ️ "+why);}return 0;}
+  if(!manual&&(cloudHold||!cloudAuto()||!mineNow()))return 0;
+  const day=new Date().toISOString().slice(0,10);
+  if(!manual&&db.settings.arFileDay===day)return 0;         /* aaj ki file ja chuki */
+  if(!((db.sales||[]).length||(db.products||[]).length)){
+    if(manual)toast("Abhi koi data nahi hai");return 0;}
+  let txt="";
+  try{txt=arFileTxt(day);}
+  catch(e){if(manual){beep(0);toast("File ban nahi saki");}return 0;}
+  if(manual)toast("📅 Aaj ki poori file cloud par ja rahi hai…");
+  let where="",er="";
+  if(window.FB.hasFile&&window.FB.hasFile()){               /* pehle Storage */
+    try{
+      await window.FB.upFile("bk/"+day+".json",txt);
+      try{await window.FB.upFile("bk-latest.json",txt);}catch(e){}
+      where="s";
+    }catch(e){er=String(e&&(e.code||e.message)||e);}
+  }
+  if(!where){                                               /* phir MUFT raasta */
+    try{await arFileDocs(day,txt);where="f";er="";}
+    catch(e2){er=er||String(e2&&(e2.code||e2.message)||e2);}
+  }
+  if(!where){
+    arErr=er;
+    if(manual){beep(0);toast("File upload nahi hui: "+cloudMsg(er));}
+    return 0;
+  }
+  db.settings.arFileDay=day;db.settings.arFileAt=Date.now();
+  db.settings.arFileKB=Math.round(txt.length/1024);
+  db.settings.arFileWhere=where;
+  cloudQuiet=1;dbWrite();cloudQuiet=0;
+  try{syncRefresh();}catch(e){}
+  if(manual){beep(1);toast("📅 Aaj ki poori file cloud par mehfooz ✓ ("+db.settings.arFileKB+" KB)");}
+  return 1;
+}
+/* ===== CLOUD SE POORA RECORD WAPIS (naya phone / app dobara install) =====
+   Milaya jata hai, mitaya nahi: cloud ki entries aur is phone ki entries
+   dono rehti hain (id se jorh kar). Is liye kuch bhi gum nahi hota. */
+async function arRestore(manual){
+  const why=arWhy();
+  if(why){beep(0);toast("ℹ️ "+why);return 0;}
+  if(!window.FB.downAll){beep(0);toast("Purani app khuli hai — dobara kholein");return 0;}
+  if(manual&&!await ask("Cloud par jo bhi record hai wo is phone ke record ke sath mila diya jayega.\n\n"
+    +"Kuch mitega nahi — dono taraf ka data rahega.",
+    {title:"Cloud se Poora Record Laayein?",icon:"🏦",ok:"Haan, laao",no:"Rehne dein"}))return 0;
+  toast("🏦 Cloud se record aa raha hai… thora intezar");
+  const parts={};let got=0;
+  try{
+    for(let i=0;i<ARK.length;i++){
+      const k=ARK[i][0];
+      try{const l=await window.FB.downAll(k);parts[k]=l||[];got+=(l||[]).length;}
+      catch(e){parts[k]=[];}
+    }
+  }catch(e){beep(0);toast("Download nahi hua: "+cloudMsg(String(e&&(e.code||e.message)||e)));return 0;}
+  if(!got){beep(0);toast("Cloud archive filhaal khali hai");return 0;}
+  try{bkSafe("Cloud archive lagane se pehle");}catch(e){}
+  const m=arMap();let nw=0;
+  const TIME={sales:1,purchases:1,returns:1,vpays:1,expenses:1,dayCloses:1};
+  ARK.forEach(function(kk){
+    const k=kk[0],list=parts[k]||[],by={},ord=[];
+    (db[k]||[]).forEach(function(o){if(o&&typeof o==="object"){const id=arId(o);if(!by[id])ord.push(id);by[id]=o;}});
+    list.forEach(function(o){
+      if(!o||typeof o!=="object"||o._del)return;
+      const id=String(o.id||"");if(!id)return;
+      const q=Object.assign({},o);delete q._k;delete q._uAt;delete q._del;
+      const old=by[id];
+      if(old&&old.img&&!q.img&&q.imgWas)q.img=old.img;   /* isi phone ki tasveer wapas jorh do */
+      delete q.imgWas;
+      if(!by[id]){ord.push(id);nw++;}
+      by[id]=q;
+      m[k+":"+id]=arH(JSON.stringify(arClean(k,q,id)));   /* cloud jaisa hi hai — dobara na bheje */
+    });
+    db[k]=ord.map(function(id){return by[id];}).filter(function(x){return !!x;});
+    if(TIME[k]){try{db[k].sort(function(a,b){return arTs(b)-arTs(a);});}catch(e){}}
+  });
+  arMapSave(m);
+  db.settings.arAt=Date.now();
+  cloudQuiet=1;dbWrite();cloudQuiet=0;
+  try{log("🏦","Cloud archive se record wapis liya — "+got+" entry");}catch(e){}
+  try{applyTheme();buildNav();render();cloudBadge();syncRefresh();}catch(e){}
+  beep(1);toast("🏦 Cloud se "+got+" entry mili · "+nw+" nayi is phone par lag gayi ✓");
+  return 1;
+}
+/* ===== CLOUD KI PURANI FILEIN — kisi bhi din par wapas ===== */
+async function arFileAll(){               /* dono jagah se list, nayi pehle */
+  const out=[];
+  try{
+    if(window.FB.hasFile&&window.FB.hasFile()&&window.FB.fileList){
+      const l=await window.FB.fileList();
+      (l||[]).forEach(function(f){out.push({day:String(f).replace(/\.json$/,""),src:"s",kb:0});});
+    }
+  }catch(e){}
+  try{
+    if(window.FB.downAll){
+      const l=await window.FB.downAll("filesIdx");
+      (l||[]).forEach(function(o){
+        if(!o||!o.id)return;
+        const d=String(o.id);
+        if(out.some(function(x){return x.day===d;}))return;
+        out.push({day:d,src:"f",kb:(o.kb||0),parts:(o.parts||1)});
+      });
+    }
+  }catch(e){}
+  out.sort(function(a,b){return a.day<b.day?1:(a.day>b.day?-1:0);});
+  return out;
+}
+async function arFileSheet(){
+  const why=arWhy();
+  if(why){beep(0);toast("ℹ️ "+why);return 0;}
+  toast("📂 Cloud ki filein dekhi ja rahi hain…");
+  let l=[];
+  try{l=await arFileAll();}
+  catch(e){beep(0);toast("List nahi mili: "+cloudMsg(String(e&&(e.code||e.message)||e)));return 0;}
+  if(!l.length){beep(0);toast("Cloud par abhi koi file nahi — 📅 se aaj ki file bhejein");return 0;}
+  const rows=l.slice(0,30).map(function(f){
+    return srow("📄","bl",f.day,"Is din ka poora hisaab"+(f.kb?(" · "+f.kb+" KB"):""),
+      "arFileGet('"+esc(f.day)+"','"+f.src+"')","LAGAO");
+  }).join("");
+  sheet("Cloud ki Purani Filein",
+    `<div class="note">Har file us din ka <b>poora</b> hisaab hai — tasveeron ke sath.
+      Koi bhi din chun kar wapas laga sakte hain. Lagane se pehle is phone ka
+      data khud-bakhud copy ho jata hai (Sync → Data Bachao).</div>
+     <div class="sycard" style="margin-top:12px">${rows}</div>
+     <button class="btn ghost" style="margin-top:12px" onclick="closeSheet()">Band Karo</button>`,"📂");
+  return 1;
+}
+async function arFileTake(day,src){        /* file ka matn wapas lao */
+  if(src==="f"){
+    const ix=await window.FB.downOne("filesIdx",day);
+    const n=(ix&&ix.parts)||1;
+    let t="";
+    for(let i=0;i<n;i++){
+      const p=await window.FB.downOne("files",day+"_"+i);
+      if(!p||typeof p.t!=="string")throw new Error("tukra-"+i+"-gum");
+      t+=p.t;
+    }
+    return t;
+  }
+  return await window.FB.downFile("bk/"+day+".json");
+}
+async function arFileGet(day,src){
+  if(!await ask("Is file ka poora hisaab is phone par lag jayega.\n\n"
+    +"Is phone ka mojooda hisaab pehle copy ho jayega (Sync → Data Bachao se wapas mil sakta hai).",
+    {title:"File wapas lagayein?",icon:"📄",danger:true,ok:"Haan, lagao",no:"Rehne dein"}))return 0;
+  toast("📄 File aa rahi hai…");
+  try{
+    const txt=await arFileTake(String(day).replace(/\.json$/,""),(src||"s"));
+    const o=JSON.parse(txt);
+    if(!o||!o.data)throw new Error("bad-file");
+    try{bkSafe("Cloud file lagane se pehle");}catch(e){}
+    const ok=cloudApply(o,0,1);
+    if(ok){try{syncRefresh();}catch(e){}}   /* naqsha waise ka waisa — farq apne aap cloud par chala jayega */
+    return ok;
+  }catch(e){beep(0);toast("File nahi lagi: "+cloudMsg(String(e&&(e.code||e.message)||e)));return 0;}
+}
+/* poore data ka naqsha "mehfooz hai" par set karo — restore ke baad,
+   warna sab kuch dobara upload hone lagta hai */
+function arBase(){
+  const m={};
+  ARK.forEach(function(kk){
+    const k=kk[0];
+    (db[k]||[]).forEach(function(o){
+      if(!o||typeof o!=="object")return;
+      const id=arId(o);m[k+":"+id]=arH(JSON.stringify(arClean(k,o,id)));
+    });
+  });
+  return arMapSave(m);
+}
 /* ===== PREMIUM — 2 PHONE PAR AIK DUKAAN (LIVE SYNC) ===== */
 var liveUn=null,livePend=null,liveTmr=0;
 function myDev(){
@@ -1173,6 +1559,7 @@ function cloudBoot(){
       if(cloudEmpty())await cloudPull("auto");
       else if(cloudAuto())cloudPush(0);
       setTimeout(liveStart,1200);
+      setTimeout(function(){try{arTry();}catch(e){}},5000);   /* 🏦 archive ki pehli koshish */
     }else{liveStop();setTimeout(async()=>{if(!await cloudSilent())cloudNudge();},1500);}
   });
 }
@@ -1611,6 +1998,14 @@ function syncBody(){
     ${srow("📱","gr","Is phone par login",crGet()?"Yaad hai — app khulte hi khud juR jayega":"Yaad nahi — har baar password lagega","","")}
     ${swrow("♻️","gr","Auto Backup",cloudAuto()?"Har tabdeeli khud online jati hai":"Band hai — haath se sync karein",cloudAuto(),"cloudSetAuto("+(cloudAuto()?"false":"true")+")")}
   </div>
+  <div class="sylab">🏦 CLOUD ARCHIVE — HAR ENTRY ALAG MEHFOOZ</div>
+  <div class="sycard">
+    ${srow("🏦","gr","Cloud par entries",arCount()+" entry mehfooz"+(db.settings.arAt?(" · "+ago(db.settings.arAt)):" · pehli koshish baqi"),"arRun(1)","BHEJO")}
+    ${srow("📅","bl","Rozana poori file",db.settings.arFileDay?("Aakhri: "+esc(db.settings.arFileDay)+(db.settings.arFileKB?(" · "+db.settings.arFileKB+" KB"):"")+(db.settings.arFileWhere==="f"?" · muft cloud":"")):"Abhi tak nahi gayi","arFile(1)","FILE")}
+    ${srow("⬇️","ol","Cloud se Poora Record Laao","Naya phone? Sari entries wapis milengi","arRestore(1)")}
+    ${srow("📂","pu","Cloud ki Purani Filein","Kisi bhi din ka poora hisaab wapas lagayein","arFileSheet()")}
+  </div>
+  <div class="note ok" style="margin-top:10px">🏦 Bank ki tarah har entry ka <b>apna</b> record cloud par jata hai — is liye "aik page 1 MB" wali hadd khatam. Sath hi rozana poori file bhi cloud par chali jati hai.</div>
   <div class="sylab">🛠️ ZAROORI KAAM</div>
   <div class="sycard">
     ${srow("⬇️","ol","Cloud se Data Laao","Naya phone? Sara hisaab wapis lein","cloudPull('ask')")}
@@ -6583,6 +6978,8 @@ function wipe(){
   askDanger("Saara Data Delete",
     "<b>Products, sales, udhaar khata, kharche, vendor</b> — sab mit jayega.<br>"
     +"Cloud backup bhi khali ho jayega.<br>"
+    +"🏦 Cloud <b>Archive</b> (har entry ki mehfooz copy) waise hi rahegi — zaroorat par "
+    +"Sync → <b>Cloud se Poora Record Laao</b> se wapas aa sakti hai.<br>"
     +"Aap ka login, Premium/subscription aur settings mahfooz rahengi.",
     ()=>doWipe());
 }
@@ -6591,6 +6988,9 @@ function doWipe(){
   const n=(db.sales||[]).length;
   db=freshDB();cart=[];resetSale();
   db.settings.openingCash=0;db.settings.openingOnline=0;db.settings.demo=0;
+  /* naqsha bhi saaf — warna archive purani entries par "mit gayi" ka nishan
+     lagane lagta, aur cloud ka purana record bhi kharab ho jata */
+  try{arBase();}catch(e){}
   try{audit("del","Saara data delete kiya ("+n+" sale)");}catch(e){}
   log("🗑","Saara data delete");
   saveDB();closeSheet();applyTheme();go("home");
