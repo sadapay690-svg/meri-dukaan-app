@@ -191,6 +191,20 @@ input::placeholder{color:var(--mut);opacity:.75}
 .card-in h4{font-size:12.5px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px}
 .toast{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:11px 20px;border-radius:24px;font-size:14px;font-weight:600;z-index:9900;opacity:0;transition:.25s;pointer-events:none;max-width:88%;text-align:center}
 .toast.show{opacity:1}
+/* ---------- "naya update tayyar hai" wali patti ---------- */
+#upbar{position:fixed;left:10px;right:10px;bottom:70px;max-width:460px;margin:0 auto;z-index:9200;
+  background:linear-gradient(135deg,#6d28d9,#4f46e5);color:#fff;border-radius:15px;padding:11px 13px;
+  display:flex;align-items:center;gap:10px;box-shadow:0 10px 26px rgba(79,70,229,.42);
+  font-size:13.5px;animation:pop .2s ease}
+#upbar[hidden]{display:none}
+#upbar b{font-size:14px;display:block}
+#upbar .ut{flex:1;min-width:0}
+#upbar .us{opacity:.86;font-size:11.5px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#upbar .ub{background:#fff;color:#4f46e5;border:0;border-radius:10px;padding:8px 12px;font-weight:900;font-size:12.5px}
+#upbar .ux{background:rgba(255,255,255,.18);border:0;color:#fff;border-radius:10px;padding:8px 10px;font-size:13px}
+/* update sheet ki chhoti tafseel */
+.upline{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;margin:12px 0 6px}
+.upline > i{display:block;height:100%;width:0;background:var(--pu);transition:width .25s}
 /* ---------- app ka apna dialog (browser ka safaid popup band) ---------- */
 .dov{position:fixed;inset:0;background:rgba(9,15,28,.62);z-index:9880;display:none;align-items:center;justify-content:center;padding:22px}
 .dov.open{display:flex}
@@ -273,6 +287,15 @@ html[dir="rtl"] .r,html[dir="rtl"] .right{text-align:left}
 .pcard .pcp{font-size:20px;font-weight:800;margin-top:3px}
 .pcard .pcd{font-size:11px;color:var(--mut);margin-top:2px}
 .pcard .pbadge{position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--pu);color:#fff;font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:10px;white-space:nowrap}
+.pcard .pbadge.sv{background:var(--g)}
+.pcard .pbadge.gd{background:#f59e0b;color:#3b2600}
+.pcard.on{border-color:var(--pu);background:var(--pl);box-shadow:0 0 0 3px rgba(109,40,217,.16)}
+.pcard.life{grid-column:1/-1;border-color:#f59e0b;background:#fffbeb}
+.pcard.life.on{border-color:#d97706;background:#fef3c7;box-shadow:0 0 0 3px rgba(245,158,11,.22)}
+.pcard.life .pcp{font-size:23px;color:#92400e}
+.pcard .ptik{position:absolute;top:7px;right:9px;font-size:13px;color:var(--pu)}
+.psel{margin-top:11px;padding:10px 13px;border-radius:12px;background:var(--soft);font-size:13px;color:var(--mut);text-align:center}
+.psel b{color:var(--ink)}
 .pbnr{display:flex;align-items:center;gap:11px;width:100%;padding:13px 14px;border-radius:14px;border:none;font-family:inherit;text-align:left;cursor:pointer;color:#fff;background:linear-gradient(135deg,#7c3aed,#4f46e5);margin-bottom:14px}
 .pbnr .bi{font-size:22px}
 .pbnr .bt{flex:1;min-width:0}
@@ -681,6 +704,7 @@ input.good{border-color:var(--g)}
 <div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
 <div class="dov" id="dov"><div class="dbox" id="dbox"></div></div>
 <div class="toast" id="toast"></div>
+<div id="upbar" hidden></div>
 <div id="printArea"></div>
 
 <script type="module">
@@ -777,7 +801,19 @@ window.FB=null;window.FB_ERR="";
       fileList:async()=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
         if(!st)throw new Error("no-storage");
         const l=await S.listAll(S.ref(st,fpath(u.uid,"bk")));
-        return l.items.map(i=>i.name).sort().reverse();}
+        return l.items.map(i=>i.name).sort().reverse();},
+      /* ---- LIVE UPDATE: sab ke liye khuli (public) jagah ----
+         pub/latest  = kaun sa build tayyar hai
+         pubc/{i}    = app ke tukre. Padhna sab ke liye khula, likhna
+         sirf BITHUB ke UID ke liye (Firestore rules mein). */
+      pubGet:async id=>{const d=await D.getDoc(D.doc(fs,"pub",String(id)));
+        return d.exists()?d.data():null;},
+      pubPart:async i=>{const d=await D.getDoc(D.doc(fs,"pubc",String(i)));
+        return d.exists()?d.data():null;},
+      pubPut:async(id,o)=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        await D.setDoc(D.doc(fs,"pub",String(id)),o);return 1;},
+      pubPutPart:async(i,o)=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        await D.setDoc(D.doc(fs,"pubc",String(i)),o);return 1;}
     };
     try{A.getRedirectResult(auth);}catch(e){}
     if(window.cloudBoot)window.cloudBoot();
@@ -792,10 +828,15 @@ window.FB=null;window.FB_ERR="";
    MERI DUKAAN — offline khata / stock / sale app
    Saara data isi browser mein (localStorage) save hota hai.
    ============================================================ */
+/* ↓ Ye nishan sirf "live update" ke liye hai. Har nayi file publish karne se
+   pehle isay 1 barha dein — app khud isi se pehchanti hai ke naya build aaya.
+   Neeche APP_BUILD bhi wohi number rakhein.                              */
+/*MERI-DUKAAN-BUILD:1*/
+const APP_BUILD=1;
 const KEY="meriDukaan_v1";
 const DEF={settings:{storeName:"Meri Dukaan",ownerName:"",phone:"",email:"",theme:"light",
     country:"PK",curSym:"Rs",curCode:"PKR",dial:"92",refCode:"",
-    openingCash:0,openingOnline:0,lowAlert:true,sound:true,printWidth:"58",lang:"ur_roman",pro:false,proTrialStart:0,proKey:"",proPlan:"",proUntil:0,trialDays:7,usedKeys:[],pin:"",staff:false,cloudAuto:true,cloudWant:"",cloudSkip:false,openSignup:true,cloudMail:"",cloudAt:0,savedAt:0,dirty:false,arAt:0,arN:0,arFileDay:"",arFileAt:0,arFileKB:0,arFileWhere:"",invHeader:"",invAddr:"",invFooter:"",invPolicy:"",demo:0},
+    openingCash:0,openingOnline:0,lowAlert:true,sound:true,printWidth:"58",lang:"ur_roman",pro:false,proTrialStart:0,proKey:"",proPlan:"",proUntil:0,trialDays:7,usedKeys:[],pin:"",staff:false,cloudAuto:true,cloudWant:"",cloudSkip:false,openSignup:true,cloudMail:"",cloudAt:0,savedAt:0,dirty:false,arAt:0,arN:0,arFileDay:"",arFileAt:0,arFileKB:0,arFileWhere:"",invHeader:"",invAddr:"",invFooter:"",invPolicy:"",demo:0,upSeen:0,upHide:0,upVer:0,upAt:0,upChkAt:0},
   products:[],sales:[],clients:[],expenses:[],vendors:[],purchases:[],logs:[],dayCloses:[],
   users:[],audit:[],returns:[],vpays:[]};
 let db=loadDB();
@@ -2024,6 +2065,12 @@ function syncBody(){
   <div class="note ${on?"ok":""}" style="margin-top:12px">${on
     ?"🔒 Data sirf aap ke account mein hai — koi doosra ise khol nahi sakta."
     :"🔒 Filhaal sab kuch isi phone mein hai. Phone gum ho ya app delete ho to data wapis nahi milega."}</div>
+  <div class="sylab">🎁 APP UPDATE</div>
+  <div class="sycard">
+    ${srow(upNew()?"🎁":"✅",upNew()?"pu":"gr","App ka Build",upTease(),"upSheet()",upNew()?"NAYA":"")}
+    ${srow("🔄","bl","Update Check Karo","Cloud se poochho koi nayi cheez aayi hai","upChk(1)")}
+  </div>
+  <div class="note ok" style="margin-top:10px">🎁 Naye feature <b>khud</b> aate hain — Play Store ya APK dobara install karne ki zaroorat nahi. Data bilkul nahi chhoota.</div>
   <button class="btn ghost" style="margin-top:12px" onclick="closeSync()">Waapis</button>`;
 }
 function openSync(){
@@ -4558,7 +4605,7 @@ function openSettings(){
     </div>
     <div class="sec"><h3>⭐ PREMIUM</h3></div>
     <div class="box">
-      ${srow("⭐","pu",paidOn()?"Premium Active":(trialLeft()>0?("Trial — "+trialLeft()+" din baqi"):"Premium Unlock Karein"),paidOn()?planLine():("Mahana Rs "+admPrice().m+" · Salana Rs "+admPrice().y.toLocaleString("en-PK")),"openPremium()",planName())}
+      ${srow("⭐","pu",paidOn()?"Premium Active":(trialLeft()>0?("Trial — "+trialLeft()+" din baqi"):"Premium Unlock Karein"),paidOn()?planLine():planTease(),"openPremium()",planName())}
       ${srow("🚀","pu","Premium Tools",featCount()+" tools — hisaab, taqaza, analytics","openProTools()")}
       ${PRO_FEATS.filter(f=>f[3]&&pfeatOn(f[4])).map(f=>srow(f[0],"pu",f[1],f[2],f[3],isPro()?"›":"🔒")).join("")}
     </div>
@@ -4924,11 +4971,68 @@ function applyKey(k){
     :(k.days?("⭐ Premium "+k.days+" din ke liye khul gaya ✓"):"⭐ Premium hamesha ke liye khul gaya ✓"));
   render();
 }
+/* ===== PLANS — 5 tarah ke plan, qeemat admin panel se badalti hai ===== */
+/* [key, naam, kitne mahine (0 = hamesha), kitne din (0 = hamesha)] */
+const PLANS=[["m","1 Mahina",1,30],["q","3 Mahine",3,90],["h","6 Mahine",6,180],
+             ["y","1 Saal",12,365],["l","Lifetime",0,0]];
+function planOf(k){return PLANS.find(function(p){return p[0]===k;})||PLANS[0];}
+function planRs(k){const p=admPrice();return Math.max(0,+(p[k]||0))||0;}
+function planShow(k){return "Rs "+planRs(k).toLocaleString("en-PK");}
+/* mahana rate se kitna bacha — khud hisaab hota hai */
+function planSave(k){
+  const p=planOf(k),mo=p[2],full=planRs("m")*mo;
+  if(!mo||!full||!planRs(k))return 0;
+  return Math.max(0,Math.round((1-planRs(k)/full)*100));
+}
+function planPM(k){                       /* har mahine ka kharcha */
+  const p=planOf(k);
+  if(!p[2]||!planRs(k))return 0;
+  return Math.round(planRs(k)/p[2]);
+}
+function planBest(){                      /* jis mein sab se ziyada bachat ho */
+  let b="",s=0;
+  PLANS.forEach(function(p){const v=planSave(p[0]);if(p[0]!=="l"&&v>s){s=v;b=p[0];}});
+  return b;
+}
+var proPick="";
+function proPickSet(k){
+  proPick=k;
+  try{
+    PLANS.forEach(function(p){
+      const el=$("pc-"+p[0]);if(!el)return;
+      el.className="pcard"+(p[0]==="l"?" life":"")+(p[0]===k?" on":"");
+      const t=el.querySelector(".ptik");if(t)t.textContent=(p[0]===k?"✓":"");
+    });
+    const s=$("pselTxt");
+    if(s)s.innerHTML="Chuna gaya: <b>"+esc(planOf(k)[1])+" — "+planShow(k)+"</b>";
+    const b=$("pselBtn");
+    if(b)b.innerHTML="💬 WhatsApp par "+esc(planOf(k)[1])+" Lein";
+  }catch(e){}
+}
+function planTease(){                      /* settings row par chhoti si jhalak */
+  const live=PLANS.filter(function(p){return planRs(p[0])>0;});
+  if(!live.length)return "Premium features khol lein";
+  const lo=live[0][0],hi=live[live.length-1][0];
+  return live.length+" plan — "+planShow(lo)+" se "+planShow(hi)+" tak";
+}
+function planCards(){
+  const best=planBest();
+  return PLANS.filter(function(p){return planRs(p[0])>0;}).map(function(p){
+    const k=p[0],sv=planSave(k),life=(k==="l");
+    const badge=life?`<div class="pbadge gd">♾️ Hamesha ke liye</div>`
+      :(k===best&&sv?`<div class="pbadge">⭐ Sab se Behtar</div>`
+      :(sv?`<div class="pbadge sv">${sv}% bachat</div>`:""));
+    return `<button class="pcard${life?" life":""}${k===proPick?" on":""}" id="pc-${k}" onclick="proPickSet('${k}')">
+      ${badge}<div class="ptik">${k===proPick?"✓":""}</div>
+      <div class="pcn">${esc(p[1])}</div>
+      <div class="pcp">${planShow(k)}</div>
+      <div class="pcd">${life?"kabhi khatam nahi":(planPM(k)?("Rs "+planPM(k)+"/mahina"):"")}</div></button>`;
+  }).join("");
+}
 function proWA(plan){
-  const st=db.settings;
-  const what=plan==="t"?(trialDays()+" din ka FREE TRIAL")
-    :plan==="y"?("Salana plan — Rs "+admPrice().y.toLocaleString("en-PK"))
-    :("Mahana plan — Rs "+admPrice().m);
+  const st=db.settings,k=plan||proPick||planBest()||"y";
+  const what=k==="t"?(trialDays()+" din ka FREE TRIAL")
+    :(planOf(k)[1]+" plan — "+planShow(k)+(planSave(k)?(" ("+planSave(k)+"% bachat)"):""));
   const t=`Assalam o Alaikum!%0AMujhe ${encodeURIComponent(admBrand().app||"Meri Dukaan")} ka ${encodeURIComponent(what)} chahiye.%0A%0ADukaan: ${encodeURIComponent(st.storeName||"-")}%0AName: ${encodeURIComponent(st.ownerName||"-")}%0APhone: ${encodeURIComponent(st.phone||"-")}`;
   toast("WhatsApp khul raha hai…");
   try{location.href=`https://wa.me/${ownerWa()}?text=${t}`;}catch(e){}
@@ -4947,6 +5051,7 @@ function featList(tap){
 }
 function openPremium(feature){
   const pro=isPro(),tl=trialLeft(),paid=paidOn();
+  if(!paid&&(!proPick||!planRs(proPick)))proPick=planBest()||"y";
   sheet("Premium",`
     <div class="prem">
       <div class="pk">⭐</div>
@@ -4954,21 +5059,16 @@ function openPremium(feature){
       <div class="ps">${feature?`"${esc(feature)}" Premium feature hai`:"Dukaan ka poora control — hisaab, taqaza, analytics"}</div>
     </div>
     ${paid?"":`
-    <div class="prow">
-      <button class="pcard" onclick="proWA('m')">
-        <div class="pcn">Mahana</div><div class="pcp">Rs ${admPrice().m}</div><div class="pcd">har mahina</div></button>
-      <button class="pcard best" onclick="proWA('y')">
-        <div class="pbadge">2 mahine FREE</div>
-        <div class="pcn">Salana</div><div class="pcp">Rs ${admPrice().y.toLocaleString("en-PK")}</div><div class="pcd">poora saal</div></button>
-    </div>`}
+    <div class="prow">${planCards()}</div>
+    <div class="psel" id="pselTxt">Chuna gaya: <b>${esc(planOf(proPick)[1])} — ${planShow(proPick)}</b></div>
+    <button class="btn" id="pselBtn" style="margin-top:11px" onclick="proWA('')">💬 WhatsApp par ${esc(planOf(proPick)[1])} Lein</button>`}
     <div class="box" style="margin-top:14px">
       ${featList(0)}
     </div>
     ${paid?`<div class="note" style="margin-top:14px;background:var(--pl);color:var(--pu)">${planLine()}</div>
     <button class="btn ghost" style="margin-top:11px" onclick="openPlan()">⏳ Timer / Mera Plan</button>`:`
     ${db.settings.proTrialStart?"":`<div class="note" style="margin-top:14px">🎁 <b>${trialDays()} din ka free trial</b> chahiye? Neeche WhatsApp par rabta karein — hum aap ke liye code bhej denge.</div>
-    <button class="btn" style="margin-top:11px" onclick="askTrial()">📲 Trial ke liye Rabta Karein</button>`}
-    <button class="btn ${db.settings.proTrialStart?"":"ghost"}" style="margin-top:10px" onclick="proWA('y')">📲 WhatsApp par Premium Lein</button>
+    <button class="btn ghost" style="margin-top:11px" onclick="askTrial()">📲 Trial ke liye Rabta Karein</button>`}
     <button class="btn ghost" style="margin-top:10px" onclick="openActivate()">🔑 Activation Code Dalo</button>`}
     <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Band Karo</button>`,"⭐");
 }
@@ -5564,7 +5664,7 @@ const ADM_DEF={mpass:0,blocked:false,blockMsg:"",alog:[],
   feats:{stock:true,sale:true,udhaar:true,reports:true,vendor:true,premium:true,barcode:true,print:true,expense:true},
   pfeats:{},
   limits:{products:40,clients:25},
-  price:{m:500,y:4000},
+  price:{m:500,q:1350,h:2500,y:4000,l:15000},
   brand:{app:"Meri Dukaan",dev:"BITHUB Solutions",wa:OWNER_WA,ver:"2.0"},
   freeAll:{on:false,until:0,note:""},keys:[]};
 const PERMS=[["sale","🛒","Sale karna"],["stock","📦","Stock badalna / product add"],
@@ -6116,7 +6216,8 @@ function admTry(){
 /* ---------- admin shell ---------- */
 let admTab="dash";
 const ADM_TABS=[["dash","📊","Dashboard"],["lic","🔑","License"],["usr","👥","Users"],
-  ["feat","🎛","Features"],["data","🗄","Data"],["brand","🏷","Brand"],["log","📜","Log"],["dz","⚠️","Danger"]];
+  ["feat","🎛","Features"],["up","🚀","Update"],["data","🗄","Data"],["brand","🏷","Brand"],
+  ["log","📜","Log"],["dz","⚠️","Danger"]];
 function openAdmin(t){
   closeSheet();admTab=t||admTab||"dash";
   const a=adm();
@@ -6133,8 +6234,10 @@ function openAdmin(t){
 }
 function closeAdmin(){$("admScr").hidden=true;render();}
 function admRender(){
-  const f={dash:admDash,lic:admLic,usr:admUsr,feat:admFeat,data:admData,brand:admBrand2,log:admLog,dz:admDz}[admTab];
+  const f={dash:admDash,lic:admLic,usr:admUsr,feat:admFeat,up:admUp,data:admData,
+    brand:admBrand2,log:admLog,dz:admDz}[admTab];
   $("admBody").innerHTML=f?f():"";
+  if(admTab==="up")setTimeout(admUpLoad,60);
 }
 function acard(t,body){return `<div class="acd"><h4>${t}</h4>${body}</div>`;}
 function arow(l,v){return `<div class="kv"><span>${l}</span><b>${v}</b></div>`;}
@@ -6249,8 +6352,12 @@ function admLic(){
     + (ks.length?`<button class="btn danger" style="margin-top:12px" onclick="admClrKeys()">🗑 Saari keys mita dein</button>`:""))
 
   + acard("💰 Qeemat (pricing)",`
-      <label>Mahana (Rs)</label><input id="apM" type="number" value="${admPrice().m}">
-      <label>Salana (Rs)</label><input id="apY" type="number" value="${admPrice().y}">
+      <label>1 Mahina (Rs)</label><input id="apM" type="number" value="${admPrice().m}">
+      <label>3 Mahine (Rs)</label><input id="apQ" type="number" value="${admPrice().q||0}">
+      <label>6 Mahine (Rs)</label><input id="apH" type="number" value="${admPrice().h||0}">
+      <label>1 Saal (Rs)</label><input id="apY" type="number" value="${admPrice().y}">
+      <label>Lifetime (Rs)</label><input id="apL" type="number" value="${admPrice().l||0}">
+      <p class="ahint">0 likhne par wo plan chhup jayega. "% bachat" khud hisaab hoti hai.</p>
       <button class="btn" style="margin-top:12px" onclick="admSavePrice()">💾 Qeemat Save</button>`);
 }
 function kSetPlan(p){kPlan=p;if(p==="L")kDays=0;admRender();}
@@ -6345,8 +6452,10 @@ function admWaKey(code){
   location.href="https://wa.me/?text="+msg;
 }
 function admSavePrice(){
-  const m=Math.max(0,num("apM")),y=Math.max(0,num("apY"));
-  adm().price={m,y};saveDB();alog("💰","Qeemat "+m+"/"+y);toast("Qeemat save ✓");admRender();
+  const m=Math.max(0,num("apM")),q=Math.max(0,num("apQ")),h=Math.max(0,num("apH")),
+        y=Math.max(0,num("apY")),l=Math.max(0,num("apL"));
+  adm().price={m,q,h,y,l};proPick="";saveDB();
+  alog("💰","Qeemat "+m+"/"+q+"/"+h+"/"+y+"/"+l);toast("Qeemat save ✓");admRender();
 }
 
 /* ---------- users ---------- */
@@ -6490,6 +6599,251 @@ function admTogglePf(k){
 function admSaveLimits(){
   adm().limits={products:Math.max(0,num("alP"))||0,clients:Math.max(0,num("alC"))||0};
   saveDB();alog("🚧","Limits "+admLimits().products+"/"+admLimits().clients);toast("Save ✓");admRender();
+}
+
+/* ---------- 🚀 APP UPDATE (publish) ----------
+   Tarteeb jaan-boojh kar aisi hai: pehle DRAFT, phir khud test, phir LIVE.
+   1) File chunein  → tukre pubc/<ver>_<i> par jate hain, phir pub/draft.
+      Draft se kisi user ko kuch nahi milta.
+   2) 🧪 Is phone par draft chalao → aap khud app istemaal kar ke dekhein.
+      Kharab lage to "Purani App Wapas" — sab kuch pehle jaisa.
+   3) ✅ LIVE karo → pub/latest par jata hai, tab sab ko milta hai.
+   4) ⛔ Rok do → pub/latest wapis purane build par, aage phailna band.       */
+var admUpF=null,admUpBusy=0,admPub={live:null,draft:null,hist:[]};
+
+function admUpMsg(t,cls){
+  const e=$("aupMsg");if(!e)return;
+  e.className="note "+(cls||"");e.innerHTML=t;e.hidden=!t;
+}
+function admUpSet(t){const e=$("aupSt");if(e)e.innerHTML=t;}
+
+function admUp(){
+  const nat=upNative();
+  return acard("🚀 App Update — bina APK naye feature",`
+      <p class="ahint">Tarteeb: <b>file chunein → draft upload → khud test → LIVE</b>.
+        User ko app dobara install nahi karni parti aur uska data bilkul nahi chhoota.</p>
+      <div id="aupSt" class="ahint" style="margin:0">⏳ Cloud se halat maloom kar rahe hain…</div>`)
+  + acard("1️⃣ Nayi file chunein",`
+      <button class="abtn" style="width:100%" onclick="$('aupFile').click()">📄 dukaan-app.html Chunein</button>
+      <input type="file" id="aupFile" accept=".html,.htm,text/html" style="display:none" onchange="admUpPick(this)">
+      <div id="aupInfo" class="ahint" style="margin:10px 0 0">Koi file nahi chuni.</div>
+      <label>User ko kya batayein (note)</label>
+      <input id="aupNote" maxlength="70" placeholder="Misal: Nayi WhatsApp parchi aur 5 premium plan">
+      <button class="btn" id="aupGo" style="margin-top:11px" onclick="admUpPush()" disabled>📤 Draft Upload Karo</button>
+      <p class="ahint" style="margin-top:9px">⚠️ Build number file ke andar se khud parha jata hai
+        (<code>/*MERI-DUKAAN-BUILD:n*/</code>). Har nayi koshish par wo number <b>1 barhana zaroori</b> hai,
+        warna app usay naya nahi samjhegi.</p>
+      <div id="aupMsg" class="note" style="margin-top:10px" hidden></div>`)
+  + acard("2️⃣ Pehle khud test karein",`
+      <p class="ahint">Draft sirf aap ke liye hai — kisi user ke paas nahi jata.
+        ${nat?"":"<b>Ye kaam mobile app (APK) mein hota hai, browser mein nahi.</b>"}</p>
+      <button class="btn ghost" id="aupTry" onclick="admUpTry()" ${nat?"":"disabled"}>🧪 Is Phone par Draft Chalao</button>
+      <button class="btn ghost r" style="margin-top:10px" onclick="upBack()" ${nat?"":"disabled"}>↩️ Purani App Wapas</button>`)
+  + acard("3️⃣ Sab ke liye live karein",`
+      <button class="btn" id="aupLive" onclick="admUpLive()" disabled>✅ LIVE Karo (sab users)</button>
+      <button class="btn ghost r" id="aupStop" style="margin-top:10px" onclick="admUpStop()" disabled>⛔ Live Update Rok Do</button>
+      <p class="ahint" style="margin-top:9px">"Rok do" se aage phailna band ho jata hai. Jin phones par
+        pehle se lag chuka hai, wahan se hataane ke liye aik naya (theek) build LIVE karein.</p>`)
+  + acard("📜 Purane publish",`<div id="aupHist" class="ahint" style="margin:0">—</div>`)
+  + acard("🔑 Firestore rules ke liye mera UID",`
+      <div id="aupUid" class="ahint" style="margin:0;word-break:break-all">—</div>
+      <button class="btn ghost" style="margin-top:10px" onclick="admUpCopyUid()">📋 UID Copy</button>
+      <p class="ahint" style="margin-top:9px">Firebase Console → Firestore → Rules mein
+        <code>pub</code> aur <code>pubc</code> ke liye padhna sab ke liye khola jata hai
+        aur likhna sirf isi UID ke liye.</p>
+      <button class="btn ghost" style="margin-top:4px" onclick="admUpRules()">📜 Rules Dekho / Copy</button>`);
+}
+
+/* jo rules Firebase Console mein paste karni hain */
+function admUpRulesTxt(){
+  const u=(window.FB&&window.FB.user&&window.FB.user());
+  const id=u?u.uid:"YAHAN-APNA-UID-LIKHEIN";
+  return "rules_version = '2';\n"
+    +"service cloud.firestore {\n"
+    +"  match /databases/{database}/documents {\n\n"
+    +"    // har dukaan ka apna data — sirf uska malik\n"
+    +"    match /shops/{uid}/{document=**} {\n"
+    +"      allow read, write: if request.auth != null && request.auth.uid == uid;\n"
+    +"    }\n\n"
+    +"    // app update — padhna sab ke liye, likhna sirf admin\n"
+    +"    match /pub/{doc} {\n"
+    +"      allow read: if true;\n"
+    +"      allow write: if request.auth != null && request.auth.uid == '"+id+"';\n"
+    +"    }\n"
+    +"    match /pubc/{doc} {\n"
+    +"      allow read: if true;\n"
+    +"      allow write: if request.auth != null && request.auth.uid == '"+id+"';\n"
+    +"    }\n"
+    +"  }\n}\n";
+}
+function admUpRules(){
+  const t=admUpRulesTxt();
+  sheet("Firestore Rules",`
+    <p class="ahint">Firebase Console → <b>Firestore Database</b> → <b>Rules</b> — sab kuch mita kar
+      ye paste karein aur <b>Publish</b> dabayein. Is ke baghair "permission denied" aayega.</p>
+    <textarea id="aupR" class="ajson" spellcheck="false">${esc(t)}</textarea>
+    <button class="btn" style="margin-top:11px" onclick="admUpRulesCopy()">📋 Copy</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Band Karo</button>`,"📜");
+}
+function admUpRulesCopy(){
+  const t=admUpRulesTxt();
+  try{navigator.clipboard.writeText(t);toast("Rules copy ho gayin ✓");}
+  catch(e){try{const a=$("aupR");a.select();document.execCommand("copy");toast("Copy ✓");}catch(e2){toast("Copy nahi hui");}}
+}
+
+/* cloud se maujooda halat */
+async function admUpLoad(){
+  const u=(function(){try{return window.FB?window.FB.user():null;}catch(e){return null;}})();
+  const ue=$("aupUid");
+  if(ue)ue.innerHTML=u?("<b>"+esc(u.uid)+"</b>"):"Cloud mein login nahi — Sync screen se login karein.";
+  if(!window.FB||!window.FB.pubGet){
+    admUpSet("📴 Cloud tayyar nahi — net on kar ke panel dobara kholein.");return;
+  }
+  let live=null,draft=null,hist=null;
+  try{live=await window.FB.pubGet("latest");}catch(e){}
+  try{draft=await window.FB.pubGet("draft");}catch(e){}
+  try{hist=await window.FB.pubGet("hist");}catch(e){}
+  admPub={live:live||null,draft:draft||null,hist:(hist&&hist.list)||[]};
+  admUpSet(
+     "Is phone par chal raha hai: <b>Build "+APP_BUILD+"</b>"+(upWhereTxt()?" ("+esc(upWhereTxt())+")":"")
+   +"<br>Sab users ke liye LIVE: <b>"+(live&&live.ver?("Build "+live.ver+(live.at?" · "+esc(ago(live.at)):"")):"koi nahi")+"</b>"
+   +"<br>Draft (test ke liye): <b>"+(draft&&draft.ver?("Build "+draft.ver+(draft.size?" · "+Math.round(draft.size/1024)+" KB":"")):"koi nahi")+"</b>");
+  const L=$("aupLive"),S=$("aupStop"),T=$("aupTry");
+  if(L)L.disabled=!(draft&&+draft.ver&&(!live||+draft.ver>+live.ver));
+  if(S)S.disabled=!(live&&+live.ver);
+  if(T)T.disabled=!(upNative()&&draft&&+draft.ver>APP_BUILD);
+  const H=$("aupHist");
+  if(H)H.innerHTML=admPub.hist.length
+    ? admPub.hist.slice(0,10).map(h=>"• <b>Build "+esc(String(h.ver))+"</b> — "+esc(h.note||"—")
+        +" <span style=\"opacity:.7\">"+esc(ago(h.at))+"</span>").join("<br>")
+    : "Abhi tak kuch publish nahi hua.";
+}
+
+/* file chunna */
+function admUpPick(inp){
+  const f=inp.files&&inp.files[0];
+  admUpF=null;
+  const B=$("aupGo");if(B)B.disabled=true;
+  if(!f){const i=$("aupInfo");if(i)i.innerHTML="Koi file nahi chuni.";return;}
+  const r=new FileReader();
+  r.onload=function(){
+    const t=upTrim(String(r.result||""));
+    const v=upMark(t),i=$("aupInfo");
+    const kb=Math.round(t.length/1024);
+    if(!v){
+      if(i)i.innerHTML="❌ Is file mein build ka nishan nahi hai.";
+      admUpMsg("File ke script mein <code>/*MERI-DUKAAN-BUILD:n*/</code> hona zaroori hai.","bad");
+      return;
+    }
+    if(t.slice(0,300).indexOf("<!DOCTYPE")<0||t.indexOf("</html>")<0){
+      if(i)i.innerHTML="❌ Ye poori app ki file nahi lagti.";
+      admUpMsg("Poori <b>dukaan-app.html</b> chunein — adhoori file nahi.","bad");
+      return;
+    }
+    admUpF={txt:t,ver:v,size:t.length,name:f.name};
+    if(i)i.innerHTML="✅ <b>"+esc(f.name)+"</b> — Build <b>"+v+"</b> · "+kb+" KB";
+    const live=admPub.live,draft=admPub.draft;
+    let warn="";
+    if(live&&+live.ver>=v)warn="⚠️ LIVE build ("+live.ver+") isi ke barabar ya barha hai — file mein number 1 barhayein.";
+    else if(draft&&+draft.ver>=v)warn="⚠️ Draft ("+draft.ver+") isi ke barabar ya barha hai — number 1 barhayein.";
+    admUpMsg(warn||("Tayyar. Upload par "+Math.ceil(t.length/UP_CHUNK)+" tukre banenge."),warn?"warn":"ok");
+    if(B)B.disabled=false;
+  };
+  r.onerror=function(){admUpMsg("File parhi nahi ja saki.","bad");};
+  r.readAsText(f);
+}
+
+/* draft upload — tukre pehle, meta sab se aakhir mein */
+const UP_CHUNK=180000;
+async function admUpPush(){
+  if(admUpBusy){toast("Pehle wala kaam chal raha hai…");return;}
+  if(!admUpF){toast("Pehle file chunein");return;}
+  if(!window.FB||!window.FB.pubPutPart){toast("Cloud tayyar nahi");return;}
+  const u=window.FB.user&&window.FB.user();
+  if(!u){toast("Pehle cloud mein login karein (Sync screen)");return;}
+  const t=admUpF.txt,ver=admUpF.ver,cs=[];
+  for(let i=0;i<t.length;i+=UP_CHUNK)cs.push(t.slice(i,i+UP_CHUNK));
+  if(cs.length>UP_MAXPARTS){toast("File bohat bari hai");return;}
+  if(!await ask("Build "+ver+" DRAFT par bhej dein? ("+cs.length+" tukre)",
+    {title:"Draft Upload",icon:"📤",ok:"Haan, bhejo",no:"Nahi",
+     note:"Draft se kisi user ko kuch nahi milta — sirf aap test kar sakenge."}))return;
+  admUpBusy=1;
+  const B=$("aupGo");if(B){B.disabled=true;B.innerHTML="⏳ Ja raha hai…";}
+  try{
+    for(let i=0;i<cs.length;i++){
+      admUpMsg("⏳ Tukra "+(i+1)+" / "+cs.length+" ja raha hai…","warn");
+      await window.FB.pubPutPart(ver+"_"+i,{ver:ver,i:i,of:cs.length,t:cs[i],at:Date.now()});
+    }
+    /* meta sab se aakhir mein — adhoora upload kabhi "tayyar" nahi kehlata */
+    await window.FB.pubPut("draft",{ver:ver,at:Date.now(),parts:cs.length,size:t.length,
+      note:String(($("aupNote")||{}).value||"").slice(0,70),by:u.uid});
+    admUpMsg("✅ Draft tayyar — Build <b>"+ver+"</b>. Ab neeche 🧪 se khud test karein.","ok");
+    alog("📤","Draft upload Build "+ver);beep(1);
+  }catch(e){
+    admUpMsg("❌ Upload nahi hua: "+esc(String(e&&e.message||e))
+      +"<br>Agar <b>permission</b> likha hai to Firestore rules lagana baqi hai.","bad");
+    beep(0);
+  }
+  admUpBusy=0;
+  if(B){B.disabled=false;B.innerHTML="📤 Draft Upload Karo";}
+  admUpLoad();
+}
+
+/* khud test karo */
+async function admUpTry(){
+  const d=admPub.draft;
+  if(!d||!+d.ver){toast("Pehle draft upload karein");return;}
+  if(+d.ver<=APP_BUILD){toast("Draft ("+d.ver+") is phone se naya nahi hai");return;}
+  if(!upNative()){toast("Ye kaam sirf mobile app mein hota hai");return;}
+  closeAdmin();
+  upMeta=Object.assign({},d,{note:"🧪 TEST — Build "+d.ver+" ("+(d.note||"draft")+")"});
+  upSheet();
+}
+
+/* live karo */
+async function admUpLive(){
+  const d=admPub.draft;
+  if(!d||!+d.ver){toast("Draft nahi hai");return;}
+  if(!await ask("Build "+d.ver+" ko SAB users ke liye live kar dein?",
+    {title:"LIVE Karo",icon:"✅",ok:"Haan, live",no:"Abhi nahi",danger:1,
+     note:"Kya aap ne khud is build par app chala kar dekh liya hai? Ghalti par ⛔ se rok sakte hain."}))return;
+  try{
+    const hist=(admPub.hist||[]).slice(0,9);
+    hist.unshift({ver:+d.ver,at:Date.now(),note:d.note||"",size:+d.size||0,parts:+d.parts||1});
+    await window.FB.pubPut("latest",{ver:+d.ver,at:Date.now(),parts:+d.parts||1,
+      size:+d.size||0,note:String(d.note||"")});
+    try{await window.FB.pubPut("hist",{list:hist,at:Date.now()});}catch(e){}
+    admUpMsg("🎉 Build <b>"+d.ver+"</b> live ho gaya — sab phones par khud pohnch jayega.","ok");
+    alog("🚀","LIVE Build "+d.ver);beep(1);toast("Live ho gaya ✓");
+  }catch(e){
+    admUpMsg("❌ Live nahi hua: "+esc(String(e&&e.message||e)),"bad");beep(0);
+  }
+  admUpLoad();
+}
+
+/* rok do */
+async function admUpStop(){
+  const live=admPub.live;if(!live||!+live.ver){toast("Kuch live nahi hai");return;}
+  const hist=(admPub.hist||[]).filter(h=>+h.ver!==+live.ver);
+  const back=hist.length?hist[0]:null;
+  if(!await ask(back?("Live wapis Build "+back.ver+" par le jayein?"):("Build "+live.ver+" ka live band kar dein?"),
+    {title:"Live Rok Do",icon:"⛔",danger:1,ok:"Haan, rok do",no:"Nahi",
+     note:"Naye phones par ye build jana band ho jayega."}))return;
+  try{
+    await window.FB.pubPut("latest",back
+      ? {ver:+back.ver,at:Date.now(),parts:+back.parts||1,size:+back.size||0,note:String(back.note||"")}
+      : {ver:0,at:Date.now(),parts:0,size:0,note:"roka gaya"});
+    admUpMsg("⛔ Rok diya"+(back?(" — ab Build "+back.ver+" live hai."):"."),"warn");
+    alog("⛔","Live roka — tha Build "+live.ver);toast("Roka ✓");
+  }catch(e){admUpMsg("❌ Nahi hua: "+esc(String(e&&e.message||e)),"bad");}
+  admUpLoad();
+}
+
+function admUpCopyUid(){
+  const u=window.FB&&window.FB.user&&window.FB.user();
+  if(!u){toast("Cloud mein login nahi");return;}
+  try{navigator.clipboard.writeText(u.uid);toast("UID copy ho gaya ✓");}
+  catch(e){toast(u.uid);}
 }
 
 /* ---------- data browser ---------- */
@@ -7090,9 +7444,233 @@ function doLoadDemo(){
   toast("🧪 Demo data taiyar — Premium waisa hi hai, cloud upload band hai");
 }
 
+/* ============================================================
+   LIVE UPDATE — naye feature bina "app update" ke
+   ------------------------------------------------------------
+   Nizaam: nayi dukaan-app.html cloud par tukron mein rakhi jati hai
+   (pubc/<ver>_<i>) aur pub/latest us par "tayyar" ka nishan lagata hai.
+   App wo tukre jorh kar poori file banati hai, achhi tarah jaanchti hai,
+   aur Android se apne andar (filesDir/live) save karwa deti hai. Agli
+   dafa app usi nayi copy se khulti hai — bilkul isi origin par, is liye
+   dukaan ka saara hisaab (localStorage) apni jagah salamat rehta hai.
+   Naya build do dafa theek na chala to Android khud purani app wapas
+   laga deta hai (MainActivity ka fail counter).
+   Bina APK ke sirf ye kaam nahi ho sakte: scanner/icon/permission jaise
+   native hisse.
+   ============================================================ */
+const UP_MINLEN=120000;        /* is se chhoti file app nahi ho sakti */
+const UP_MAXPARTS=16;          /* is se ziyada tukre = kuch ghalat hai */
+const UP_EVERY=6*3600000;      /* har 6 ghante khud dekh lo */
+var upMeta=null,upBusy=0,upTmr=null;
+
+function ANDx(){try{return window.AND||null;}catch(e){return null;}}
+function upNative(){const a=ANDx();return !!(a&&a.upSave);}
+function upWhereTxt(){
+  const a=ANDx();
+  if(!a||!a.upWhere)return "";
+  try{return a.upWhere()==="live"?"download ki hui copy":"app ke andar wali copy";}
+  catch(e){return "";}
+}
+/* file ke andar khud likha hua build number */
+function upTrim(t){                     /* shuru ka BOM hata do */
+  let s=String(t==null?"":t);
+  while(s.charCodeAt(0)===65279)s=s.slice(1);
+  return s;
+}
+function upMark(t){
+  const m=String(t||"").match(/\/\*MERI\-DUKAAN\-BUILD:(\d+)\*\//);
+  return m?+m[1]:0;
+}
+/* download ki hui file par poora shak — zara si kharabi par bhi mana */
+function upBad(t,m){
+  if(!t||t.length<UP_MINLEN)return "file bohat chhoti hai";
+  if(m&&+m.size&&t.length!==+m.size)return "file poori nahi aayi";
+  if(t.slice(0,300).indexOf("<!DOCTYPE")<0)return "ye app ki file nahi lagti";
+  if(t.indexOf("</html>")<0)return "file adhoori hai";
+  const v=upMark(t);
+  if(!v)return "build ka nishan nahi mila";
+  if(m&&+m.ver&&v!==+m.ver)return "build number mel nahi khata";
+  if(v<=APP_BUILD)return "ye purana build hai";
+  return "";
+}
+function upNew(){return !!(upMeta&&+upMeta.ver>APP_BUILD);}
+function upTease(){
+  if(upNew())return "Naya update tayyar hai — Build "+upMeta.ver;
+  const w=upWhereTxt();
+  return "Build "+APP_BUILD+(w?" · "+w:"")+" — sab se nayi";
+}
+
+/* ---------- patti (banner) ---------- */
+function upBar(){
+  const b=$("upbar");if(!b)return;
+  const hide=+((db.settings&&db.settings.upHide)||0);
+  if(!upNew()||hide===+upMeta.ver){b.hidden=true;b.innerHTML="";return;}
+  b.innerHTML=`<div class="ut"><b>🎁 Nayi cheezein tayyar hain</b>
+      <div class="us">${esc(upMeta.note||("Build "+upMeta.ver))}</div></div>
+    <button class="ub" onclick="upSheet()">DEKHO</button>
+    <button class="ux" onclick="upBarHide()">✕</button>`;
+  b.hidden=false;
+}
+function upBarHide(){
+  try{db.settings.upHide=+((upMeta&&upMeta.ver)||0);dbWrite();}catch(e){}
+  upBar();
+}
+
+/* ---------- cloud se poochho: koi naya build hai? ---------- */
+async function upChk(manual){
+  if(upBusy){if(manual)toast("Pehle wala kaam chal raha hai…");return 0;}
+  if(!window.FB||!window.FB.pubGet){
+    if(manual)toast("Internet ka intezar — net on kar ke dobara dekhein");
+    return 0;
+  }
+  upBusy=1;
+  let m=null;
+  try{m=await window.FB.pubGet("latest");}
+  catch(e){upBusy=0;if(manual){beep(0);toast("Check nahi hua — net dekhein");}return 0;}
+  upBusy=0;
+  try{db.settings.upChkAt=Date.now();dbWrite();}catch(e){}
+  if(!m||!+m.ver||+m.ver<=APP_BUILD){
+    upMeta=null;upBar();
+    if(manual){beep(1);toast("✓ App pehle hi sab se nayi hai");if(syncOpen())syncRefresh();}
+    return 0;
+  }
+  upMeta=m;
+  try{db.settings.upSeen=+m.ver;dbWrite();}catch(e){}
+  upBar();
+  if(syncOpen())syncRefresh();
+  if(manual){beep(1);upSheet();}
+  return 1;
+}
+
+/* ---------- tukre jorh kar nayi app utaro ---------- */
+function upProg(done,total,txt){
+  const l=$("upPl"),t=$("upPt");
+  if(l)l.style.width=(total?Math.round(done*100/total):0)+"%";
+  if(t)t.innerHTML=esc(txt||(done+" / "+total+" hissa aa gaya"));
+}
+async function upDown(){
+  if(!upNew()){toast("Koi naya update nahi");return 0;}
+  if(!upNative()){
+    toast("Ye kaam sirf mobile app (APK) mein hota hai");
+    return 0;
+  }
+  if(upBusy){toast("Pehle wala kaam chal raha hai…");return 0;}
+  const m=upMeta,parts=Math.max(1,+m.parts||1);
+  if(parts>UP_MAXPARTS){beep(0);toast("Update ka size theek nahi — publish dobara karein");return 0;}
+  upBusy=1;
+  const btn=$("upGo");if(btn){btn.disabled=true;btn.innerHTML="⏳ Aa raha hai…";}
+  upProg(0,parts,"Shuru ho raha hai…");
+  let txt="";
+  try{
+    for(let i=0;i<parts;i++){
+      const p=await window.FB.pubPart(m.ver+"_"+i);
+      if(!p||typeof p.t!=="string")throw new Error("hissa "+(i+1));
+      txt+=p.t;
+      upProg(i+1,parts);
+    }
+  }catch(e){
+    upBusy=0;if(btn){btn.disabled=false;btn.innerHTML="⬇️ Update Lein";}
+    upProg(0,parts,"❌ Adhoora reh gaya — dobara koshish karein");
+    beep(0);toast("Download poora nahi hua ("+(e&&e.message||"net")+")");
+    return 0;
+  }
+  const bad=upBad(txt,m);
+  if(bad){
+    upBusy=0;if(btn){btn.disabled=false;btn.innerHTML="⬇️ Dobara Koshish";}
+    upProg(0,parts,"❌ "+esc(bad));
+    beep(0);toast("Update theek nahi mila — "+bad);
+    return 0;
+  }
+  upProg(parts,parts,"Save ho raha hai…");
+  /* asli hisaab chhune se pehle phone mein apni copy bacha lo */
+  try{snapSave(1);}catch(e){}
+  let ok=0;
+  try{ok=ANDx().upSave(txt,+m.ver)?1:0;}catch(e){ok=0;}
+  upBusy=0;
+  if(!ok){
+    if(btn){btn.disabled=false;btn.innerHTML="⬇️ Dobara Koshish";}
+    upProg(0,parts,"❌ Save nahi hua — phone mein jagah dekhein");
+    beep(0);toast("Update save nahi hua");
+    return 0;
+  }
+  try{db.settings.upVer=+m.ver;db.settings.upAt=Date.now();db.settings.upHide=0;dbWrite();}catch(e){}
+  try{log("🎁","App update — Build "+m.ver);}catch(e){}
+  try{audit("set","App update Build "+m.ver+" lag gaya");}catch(e){}
+  upProg(parts,parts,"✅ Tayyar — ab app dobara khulegi");
+  beep(1);
+  const yes=await ask("Update tayyar hai. Abhi laga dein?",
+    {title:"Nayi App Tayyar",icon:"🎁",ok:"Haan, abhi",no:"Baad mein",
+     note:"Aap ka saara hisaab, khatay aur stock waise hi rahenge — kuch nahi jata."});
+  if(yes)upApply();
+  else{toast("Theek hai — agli dafa app khulne par khud lag jayega");closeSheet();}
+  return 1;
+}
+
+/* ---------- naya build chalao / purana wapas lao ---------- */
+function upApply(){
+  const a=ANDx();
+  if(!a||!a.upApply){toast("App dobara kholein");return;}
+  toast("App dobara khul rahi hai…");
+  try{if(cloudOn()&&cloudAuto())window.FB.push(cloudPack());}catch(e){}
+  setTimeout(function(){try{a.upApply();}catch(e){}},450);
+}
+async function upBack(){
+  const a=ANDx();
+  if(!a||!a.upReset){toast("Ye kaam sirf mobile app mein hota hai");return;}
+  if(!await ask("Purani (app ke andar wali) copy wapas lagayein?",
+    {title:"Purani App Wapas",icon:"↩️",danger:1,ok:"Haan, wapas",no:"Nahi"}))return;
+  try{db.settings.upVer=0;dbWrite();}catch(e){}
+  toast("Purani app wapas lag rahi hai…");
+  setTimeout(function(){try{a.upReset();}catch(e){}},450);
+}
+
+/* ---------- update ki screen ---------- */
+function upSheet(){
+  const w=upWhereTxt(),nat=upNative();
+  if(!upNew()){
+    sheet("App Update",`
+      <div class="note ok">✅ <b>Aap ke paas sab se nayi app hai.</b><br>
+        Build <b>${APP_BUILD}</b>${w?" · "+esc(w):""}</div>
+      ${db.settings.upChkAt?`<p class="ahint" style="margin-top:10px;text-align:center">Aakhri check: ${esc(ago(db.settings.upChkAt))}</p>`:""}
+      <button class="btn" style="margin-top:12px" onclick="upChk(1)">🔄 Dobara Check Karo</button>
+      ${(nat&&APP_BUILD>1)?`<button class="btn ghost r" style="margin-top:10px" onclick="upBack()">↩️ Purani App Wapas Lagayein</button>`:""}
+      <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Band Karo</button>`,"⬇️");
+    return;
+  }
+  const m=upMeta,kb=Math.round((+m.size||0)/1024);
+  sheet("Nayi App Tayyar",`
+    <div class="prem"><div class="pk">🎁</div>
+      <div class="pt">Build ${esc(String(m.ver))}</div>
+      <div class="ps">${esc(m.note||"Nayi cheezein aur behtari")}</div></div>
+    <p class="ahint" style="margin:0">Ab chal raha hai: <b>Build ${APP_BUILD}</b>${w?" ("+esc(w)+")":""}<br>
+      Naya: <b>Build ${esc(String(m.ver))}</b>${kb?" · "+kb+" KB":""}${m.at?" · "+esc(ago(m.at)):""}</p>
+    <div class="upline"><i id="upPl"></i></div>
+    <p class="ahint" id="upPt" style="text-align:center;margin:0">${nat?"Download ke liye tayyar":"Ye kaam sirf mobile app (APK) mein hota hai"}</p>
+    <div class="note ok" style="margin-top:12px">🔒 Aap ka saara hisaab, khatay, stock aur backup <b>waise hi</b> rahenge. Update sirf app ki shakal badalta hai, data ko nahi chhoota.</div>
+    ${nat?`<button class="btn" id="upGo" style="margin-top:12px" onclick="upDown()">⬇️ Update Lein</button>`
+        :`<div class="note" style="margin-top:12px">📱 Browser mein sirf khabar milti hai. Mobile app kholein.</div>`}
+    <button class="btn ghost" style="margin-top:10px" onclick="upBarHide();closeSheet()">Baad Mein</button>`,"🎁");
+}
+
+/* ---------- app khulte hi chupke se check ---------- */
+/* Ye alag hai aur HAR haal mein chalta hai (login screen par bhi) — Android
+   isi ek call se jaanta hai ke naya build theek chala. Na aaye to do
+   koshishon ke baad purani app khud wapas aa jati hai. */
+function upHealthy(){
+  try{window.__mdBoot=1;}catch(e){}
+  try{const a=ANDx();if(a&&a.bootOk)a.bootOk();}catch(e){}
+}
+function upBoot(){
+  if(upTmr)clearInterval(upTmr);
+  setTimeout(function(){upChk(0);},9000);
+  upTmr=setInterval(function(){upChk(0);},UP_EVERY);
+  try{window.addEventListener("online",function(){setTimeout(function(){upChk(0);},4000);});}catch(e){}
+}
+
 /* ---------- start ---------- */
 applyTheme();admMigrate();buildNav();applyLang();watchLang();syncWatchOn();
 if(authGate()){go("home");snapSave();bkDaily();lockGate();myDev();setTimeout(liveStart,2500);}
+upHealthy();upBoot();
 </script>
 </body>
 </html>
