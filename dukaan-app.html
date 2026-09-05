@@ -832,7 +832,18 @@ window.FB=null;window.FB_ERR="";
         await D.setDoc(D.doc(fs,"rj",u.uid),o);return 1;},
       rjFind:async code=>{
         const s=await D.getDocs(D.query(D.collection(fs,"rj"),D.where("code","==",String(code))));
-        const a=[];s.forEach(function(d){a.push(d.data());});return a;}
+        const a=[];s.forEach(function(d){a.push(d.data());});return a;},
+      /* ---- AIK KEY AIK DUKAAN: kz/{code} ----
+         Jo account pehle key lagata hai wohi us key ka malik ban jata hai.
+         Rules mein sirf "create" ki ijazat hai — doosra account wohi key
+         lagane ki koshish kare to likhai "update" ban jati hai aur server
+         khud mana kar deta hai. Padhna sab ke liye khula. */
+      kzGet:async code=>{const d=await D.getDoc(D.doc(fs,"kz",String(code)));
+        return d.exists()?d.data():null;},
+      kzNew:async(code,o)=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        await D.setDoc(D.doc(fs,"kz",String(code)),o);return 1;},
+      kzFree:async code=>{const u=auth.currentUser;if(!u)throw new Error("no-user");
+        await D.deleteDoc(D.doc(fs,"kz",String(code)));return 1;}
     };
     try{A.getRedirectResult(auth);}catch(e){}
     if(window.cloudBoot)window.cloudBoot();
@@ -850,13 +861,13 @@ window.FB=null;window.FB_ERR="";
 /* ↓ Ye nishan sirf "live update" ke liye hai. Har nayi file publish karne se
    pehle isay 1 barha dein — app khud isi se pehchanti hai ke naya build aaya.
    Neeche APP_BUILD bhi wohi number rakhein.                              */
-/*MERI-DUKAAN-BUILD:5*/
-const APP_BUILD=5;
+/*MERI-DUKAAN-BUILD:7*/
+const APP_BUILD=7;
 const KEY="meriDukaan_v1";
 const DEF={settings:{storeName:"Meri Dukaan",ownerName:"",phone:"",email:"",theme:"light",
     country:"PK",curSym:"Rs",curCode:"PKR",dial:"92",refCode:"",
     myRef:"",refGot:0,refN:0,refLife:0,refChkAt:0,refJoin:0,
-    rjMo:0,rjLife:0,rjAt:0,rjSent:"",
+    rjMo:0,rjLife:0,rjAt:0,rjSent:"",kzWait:"",
     openingCash:0,openingOnline:0,lowAlert:true,sound:true,printWidth:"58",lang:"ur_roman",pro:false,proTrialStart:0,proKey:"",proPlan:"",proUntil:0,trialDays:7,usedKeys:[],pin:"",staff:false,cloudAuto:true,cloudWant:"",cloudSkip:false,openSignup:true,cloudMail:"",cloudAt:0,savedAt:0,dirty:false,arAt:0,arN:0,arFileDay:"",arFileAt:0,arFileKB:0,arFileWhere:"",invHeader:"",invAddr:"",invFooter:"",invPolicy:"",demo:0,upSeen:0,upHide:0,upVer:0,upAt:0,upChkAt:0},
   products:[],sales:[],clients:[],expenses:[],vendors:[],purchases:[],logs:[],dayCloses:[],
   users:[],audit:[],returns:[],vpays:[]};
@@ -4917,19 +4928,24 @@ function kChk(body){
 function makeKey(plan,days){
   const p=KPLANS[plan]?plan:"P";
   const d=Math.min(32767,Math.max(0,Math.floor(days||0)));
-  let r="";for(let i=0;i<2;i++)r+=KCH[Math.floor(Math.random()*32)];
+  /* 6 harf random — pehle sirf 2 the, jis se sirf 1024 keys banti thin aur
+     aik hi key do gaahakon ko ja sakti thi. Ab arbon mumkin hain, is liye
+     har key waqai apni hai aur "aik key aik dukaan" ka nizaam theek chalta hai. */
+  let r="";for(let i=0;i<6;i++)r+=KCH[Math.floor(Math.random()*32)];
   const body=p+k32(d,3)+r;
   const full=body+kChk(body);
-  return "DKN-"+full.slice(0,4)+"-"+full.slice(4);
+  return "DKN-"+full.slice(0,4)+"-"+full.slice(4,8)+"-"+full.slice(8);
 }
 function parseKey(k){
   const c=String(k||"").toUpperCase().replace(/[^A-Z0-9-]/g,"");
-  if(!/^DKN-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(c))return null;
-  const p=c.slice(4,8)+c.slice(9,13);
-  const body=p.slice(0,6);
-  if(KPLANS[body[0]]&&kChk(body)===p.slice(6,8)){
+  if(!/^DKN-[A-Z0-9]{4}-[A-Z0-9]{4}(-[A-Z0-9]{4})?$/.test(c))return null;
+  const p=c.slice(4).split("-").join("");
+  /* nayi key 12 harf ki, purani 8 harf ki — dono chalti hain */
+  const bl=p.length===12?10:6;
+  const body=p.slice(0,bl);
+  if(KPLANS[body[0]]&&kChk(body)===p.slice(bl,bl+2)){
     const d=unk32(body.slice(1,4));
-    if(d>=0)return {code:c,plan:body[0],days:body[0]==="L"?0:d};
+    if(d>=0)return {code:c,plan:body[0],days:body[0]==="L"?0:d,fresh:p.length===12};
   }
   let sum=0;for(const ch of c)sum+=ch.charCodeAt(0);
   if(sum%97===0)return {code:c,plan:"L",days:0,legacy:true};
@@ -4970,21 +4986,152 @@ function startTrial(days){
   closeSheet();toast("🎁 "+d+" din ka Premium trial shuru ✓");
   render();
 }
+/* ============================================================
+   AIK KEY — AIK DUKAAN
+   Har code sirf aik hi account mein chalta hai. Jo account pehli
+   baar code lagata hai, wohi us code ka malik ban jata hai (kz/{code}).
+   Doosre account par wohi code dobara nahi chalta.
+   Wohi account phone badle, app dobara install kare — code chalta
+   rahega, kyunki bandhish account se hai, phone se nahi.
+   ============================================================ */
+var kzBusy=0;
+function kzUid(){
+  const u=(window.FB&&window.FB.user&&window.FB.user());
+  return (u&&u.uid)?String(u.uid):"";
+}
+/* code par apna haq darj karein. Jawab: {ok:1} ya {ok:0,why:...} */
+async function kzClaim(code){
+  const uid=kzUid();
+  if(!uid)return {ok:0,why:"login"};
+  if(!window.FB||!window.FB.kzGet||!window.FB.kzNew)return {ok:0,why:"net"};
+  let d=null;
+  try{
+    d=await upRace(window.FB.kzGet(code));
+    if(d===UP_TMO)return {ok:0,why:"net"};
+  }catch(e){return {ok:0,why:"net"};}
+  if(d&&d.uid){
+    /* pehle se apna hi hai — dobara install par bhi chalta rahe */
+    if(String(d.uid)===uid)return {ok:1,again:1};
+    return {ok:0,why:"taken",at:+d.at||0,shop:String(d.shop||"")};
+  }
+  let r=null;
+  try{
+    r=await upRace(window.FB.kzNew(code,{code:code,uid:uid,
+      mail:String((window.FB.user()||{}).email||"").slice(0,60),
+      shop:String((db.settings.storeName||"")).slice(0,40),
+      at:Date.now(),v:1}));
+    if(r===UP_TMO)return {ok:0,why:"net"};
+  }catch(e){
+    /* Do phone aik hi lamhe mein koshish karein to server sirf pehle ko
+       likhne deta hai — doosre ko yahan "mana" milta hai. */
+    const m=String((e&&(e.code||e.message))||"").toLowerCase();
+    if(m.indexOf("permission")>=0||m.indexOf("denied")>=0||m.indexOf("insufficient")>=0)
+      return {ok:0,why:"taken"};
+    return {ok:0,why:"net"};
+  }
+  return {ok:1};
+}
+/* na chal sakne ki wajah aasan alfaz mein */
+function kzBad(r,code){
+  beep(false);
+  if(r.why==="login"){
+    sheet("Pehle Login Karein",`
+      <p class="ahint" style="margin-bottom:12px">Ye code sirf <b>aap ke apne account</b> mein khulega — is liye
+        pehle apne email aur password se login karna zaroori hai. Login ke baad code dobara dalein.</p>
+      <button class="btn" onclick="openSync()">☁️ Login Karein</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="openActivate()">Waapis</button>`,"🔒");
+    return;
+  }
+  if(r.why==="taken"){
+    const when=r.at?(" ("+fdate(r.at)+")"):"";
+    sheet("Ye Code Pehle Chal Chuka Hai",`
+      <p class="ahint" style="margin-bottom:12px">Ye code kisi doosre account mein pehle hi laga hua hai${esc(when)} —
+        aik code sirf aik dukaan ke liye hota hai.</p>
+      <p class="ahint" style="margin-bottom:12px">Agar ye code aap ka hi hai aur aap ne <b>naya account</b> bana liya hai,
+        to hamein WhatsApp par batayein — hum foran khol dete hain.</p>
+      <button class="btn" onclick="kzHelpWA('${esc(String(code||""))}')">📲 WhatsApp par Batayein</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="openActivate()">Waapis</button>`,"⛔");
+    return;
+  }
+  sheet("Internet Zaroori Hai",`
+    <p class="ahint" style="margin-bottom:12px">Code kholne ke liye <b>aik baar</b> internet chahiye. Net on kar ke
+      dobara koshish karein — is ke baad app hamesha bina internet chalti rahegi.</p>
+    <button class="btn" onclick="openActivate()">🔄 Dobara Koshish</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Baad Mein</button>`,"📶");
+}
+function kzHelpWA(code){
+  const st=db.settings;
+  const t=`Assalam o Alaikum!%0AMera code kisi doosre account mein laga hua hai, mujhe apne naye account mein chahiye.`
+    +`%0A%0ACode: ${encodeURIComponent(code||"")}`
+    +`%0ADukaan: ${encodeURIComponent(st.storeName||"-")}`
+    +`%0AEmail: ${encodeURIComponent(cloudMail()||st.email||"-")}`
+    +`%0APhone: ${encodeURIComponent(st.phone||"-")}`;
+  toast("WhatsApp khul raha hai…");
+  try{location.href=`https://wa.me/${ownerWa()}?text=${t}`;}catch(e){}
+}
+/* Signup ke waqt code diya gaya ho: cloud login mukammal hone ka intezar,
+   phir code par haq darj kar ke kholna. Net na ho to code yaad reh jata hai. */
+async function kzLater(k,n){
+  if(!k||!k.code)return;
+  n=+n||0;
+  const st=db.settings;
+  if((st.usedKeys||[]).indexOf(k.code)>=0){st.kzWait="";return;}
+  if(!kzUid()){
+    if(n<8){setTimeout(function(){try{kzLater(k,n+1);}catch(e){}},2500);return;}
+    kzPend(k);return;
+  }
+  let r={ok:0,why:"net"};
+  try{r=await kzClaim(k.code);}catch(e){r={ok:0,why:"net"};}
+  if(r&&r.ok){st.kzWait="";applyKey(k);return;}
+  if(r&&r.why==="taken"){st.kzWait="";saveDB();kzBad(r,k.code);return;}
+  if(n<8){setTimeout(function(){try{kzLater(k,n+1);}catch(e){}},4000);return;}
+  kzPend(k);
+}
+function kzPend(k){
+  db.settings.kzWait=k.code;saveDB();
+  toast("Code yaad rakh liya — net aane par khud khul jayega");
+}
+/* net aane par ruka hua code khud khol dein */
+function kzWake(){
+  const st=db.settings,c=String(st.kzWait||"");
+  if(!c)return 0;
+  const k=parseKey(c);
+  if(!k){st.kzWait="";saveDB();return 0;}
+  if((st.usedKeys||[]).indexOf(k.code)>=0){st.kzWait="";saveDB();return 0;}
+  if(!kzUid())return 0;
+  try{
+    kzClaim(k.code).then(function(r){
+      if(r&&r.ok){db.settings.kzWait="";applyKey(k);}
+      else if(r&&r.why==="taken"){db.settings.kzWait="";saveDB();}
+    }).catch(function(){});
+  }catch(e){}
+  return 1;
+}
 function openActivate(){
   sheet("Activation Code",`
-    <p style="font-size:13px;color:var(--mut);margin:-6px 0 12px">WhatsApp par payment ke baad jo code mile wo yahan dalein.</p>
+    <p style="font-size:13px;color:var(--mut);margin:-6px 0 12px">WhatsApp par payment ke baad jo code mile wo yahan dalein.
+      Aik baar internet chahiye — code sirf aap ke account mein khulega.</p>
     <label>Code</label>
-    <input id="akIn" class="bigin" placeholder="DKN-XXXX-XXXX" style="text-transform:uppercase;text-align:center;letter-spacing:2px">
-    <button class="btn" style="margin-top:14px" onclick="doActivate()">🔑 Activate Karein</button>
+    <input id="akIn" class="bigin" placeholder="DKN-XXXX-XXXX-XXXX" style="text-transform:uppercase;text-align:center;letter-spacing:2px">
+    <button class="btn" id="akBtn" style="margin-top:14px" onclick="doActivate()">🔑 Activate Karein</button>
     <button class="btn ghost" style="margin-top:10px" onclick="openPremium()">Waapis</button>`,"🔑");
 }
-function doActivate(){
+async function doActivate(){
+  if(kzBusy)return;
   const raw=(($("akIn")||{}).value||"").trim().toUpperCase();
   const k=parseKey(raw);
   if(!k){toast("Code theek nahi — dobara check karein");beep(false);return;}
   const st=db.settings;
   st.usedKeys=st.usedKeys||[];
   if(st.usedKeys.indexOf(k.code)>=0){toast("Ye code pehle istemaal ho chuka hai");beep(false);return;}
+  const b=$("akBtn");
+  kzBusy=1;
+  if(b){b.disabled=true;b.textContent="⏳ Code check ho raha hai…";}
+  let r={ok:0,why:"net"};
+  try{r=await kzClaim(k.code);}catch(e){r={ok:0,why:"net"};}
+  kzBusy=0;
+  if(b){b.disabled=false;b.textContent="🔑 Activate Karein";}
+  if(!r||!r.ok){kzBad(r||{why:"net"},k.code);return;}
   applyKey(k);
 }
 function applyKey(k){
@@ -5699,7 +5846,14 @@ const LANGS={ur_roman:"Roman Urdu",en:"English",ur:"اردو"};
    LOGIN + HIDDEN ADMIN PANEL
    ============================================================ */
 const SESKEY="meriDukaan_ses";
-const ADM_EMERGENCY="BITHUB-MASTER-9820";
+/* Emergency code file mein saaf nahi likha — sirf uski nishani (hash) rakhi hai.
+   Code bilkul waisa hi chalta hai, magar app ki file kholne wale ko nazar nahi
+   aata. Lambai ki shart bhi hai, taake koi chhota sa lafz ittefaq se na khol de. */
+const ADM_EMG_H=2253944060;
+function admEmg(v){
+  const s=String(v||"");
+  return s.length>=14&&hsh("MD-EMG-"+s)===ADM_EMG_H;
+}
 const OWNER_WA="923278644756";
 function ownerWa(){return waNum(admBrand().wa||OWNER_WA)||OWNER_WA;}
 const ADM_DEF={mpass:0,blocked:false,blockMsg:"",alog:[],
@@ -5974,7 +6128,7 @@ function authScreen(mode){
 
         ${one?`<label class="opt">Referral / Activation Code</label>
         <div class="ifl"><span class="ii">🎁</span>
-          <input id="suRef" placeholder="DKN-XXXX-XXXX" autocapitalize="characters" oninput="fClr('suRef')"></div>
+          <input id="suRef" placeholder="MD7KQX9 ya DKN-XXXX-XXXX-XXXX" autocapitalize="characters" oninput="fClr('suRef')"></div>
         <div class="fe" id="e_suRef" hidden></div>`:""}
 
         <button class="btn" style="margin-top:17px" onclick="doSignup()">Account Banayein →</button>
@@ -6138,8 +6292,10 @@ async function doSignup(){
   :(brandNew?" · nayi dukaan: "+store:" · isi dukaan ka naya login")));
   hideAuth();applyTheme();go("home");beep(true);
   toast("Khush aamdeed "+name+" ✓");
-  if(key)setTimeout(()=>{try{applyKey(key);}catch(e){}},1600);
-  setTimeout(()=>{try{cloudJoin(mail,p1);}catch(e){}},key?2400:900);
+  /* Code diya gaya ho to pehle cloud login mukammal hone dein — code
+     sirf account se bandhta hai, is liye login ke baad khola jata hai. */
+  setTimeout(()=>{try{cloudJoin(mail,p1);}catch(e){}},900);
+  if(key)setTimeout(()=>{try{kzLater(key,0);}catch(e){}},4200);
   /* cloud par sign-in hone ke baad apni nishani chhorh dein — tab hi
      bataane wale ke phone par ginti dikhti hai */
   if(ref)setTimeout(()=>{try{rjSay();}catch(e){}},key?9000:6000);
@@ -6254,7 +6410,7 @@ function admTry(){
     toast("Master password set ✓");openAdmin();return;
   }
   if(!v)return fErr("amPass","Master password likhein");
-  if(hsh(v)!==a.mpass&&v!==ADM_EMERGENCY)return fErr("amPass","Master password ghalat hai");
+  if(hsh(v)!==a.mpass&&!admEmg(v))return fErr("amPass","Master password ghalat hai");
   beep(true);openAdmin();
 }
 
@@ -6396,6 +6552,17 @@ function admLic(){
       :`<p class="ahint">Ab tak koi key nahi bani.</p>`)
     + (ks.length?`<button class="btn danger" style="margin-top:12px" onclick="admClrKeys()">🗑 Saari keys mita dein</button>`:""))
 
+  + acard("🔒 Aik key — aik dukaan",`
+      <p class="ahint">Har key sirf aik hi account mein khulti hai. Kisi grahak ne naya account bana liya ho aur purani key na chal rahi ho, to yahan se azad kar dein.</p>
+      <label>Key ka code</label>
+      <input id="akzIn" placeholder="DKN-XXXX-XXXX-XXXX" style="text-transform:uppercase;text-align:center;letter-spacing:2px">
+      <div class="agrid" style="margin-top:11px">
+        <button class="abtn" onclick="admKzSee()">🔍 Kis ke paas hai</button>
+        <button class="abtn" onclick="admKzFree()">🔓 Azad Karein</button>
+      </div>
+      <div id="akzOut" style="margin-top:12px"></div>
+      <p class="ahint" style="margin-top:10px">🔓 dabane ke baad wohi key kisi bhi naye account mein aik baar phir chal jayegi. Pehle 🔍 se dekh lein.</p>`)
+
   + acard("🎁 Dost bulane ka inaam",`
       <p class="ahint">Jis ne plan liya, uske WhatsApp message mein <b>"Mujhe bataya: CODE"</b> likha hota hai. Wo code yahan dalein — aur jitne mahine ka plan usne liya, utne mahine code wale ko de dein.</p>
       <label>Jis ne bataya tha — uska code</label>
@@ -6474,9 +6641,48 @@ async function admDelKey(code){
   saveDB();alog("🗑","Key delete "+code);toast("Key mit gayi");admRender();
 }
 function admClrUsed(){
-  db.settings.usedKeys=[];saveDB();
+  db.settings.usedKeys=[];db.settings.kzWait="";saveDB();
   alog("♻️","Istemaal ki keys clear");
   toast("Ab wahi key dobara chal jayegi ✓");admRender();
+}
+/* ---- aik key aik dukaan: dekhna aur azad karna ---- */
+function admKzCode(){
+  const raw=((($("akzIn")||{}).value)||"").trim().toUpperCase();
+  return raw.replace(/[^A-Z0-9-]/g,"");
+}
+function admKzMsg(h){const o=$("akzOut");if(o)o.innerHTML=h;}
+async function admKzSee(){
+  const c=admKzCode();
+  if(!c){toast("Pehle key ka code likhein");beep(0);return;}
+  if(!window.FB||!window.FB.kzGet){admKzMsg(`<div class="note">Net on kar ke dobara koshish karein</div>`);beep(0);return;}
+  admKzMsg(`<div class="note">⏳ Cloud se pooch rahe hain…</div>`);
+  let d=null;
+  try{d=await upRace(window.FB.kzGet(c));}catch(e){d=UP_TMO;}
+  if(d===UP_TMO){admKzMsg(`<div class="note">Cloud se jawab nahi mila — net dekhein</div>`);beep(0);return;}
+  if(!d||!d.uid){
+    admKzMsg(`<div class="note" style="background:var(--gl);color:var(--g)">✅ Ye key abhi khali hai — koi bhi account isay laga sakta hai</div>`);
+    beep(1);return;
+  }
+  admKzMsg(`<div class="note"><b>Ye key laga hui hai</b><br>
+    Email: ${esc(d.mail||"—")}<br>
+    Dukaan: ${esc(d.shop||"—")}<br>
+    Waqt: ${d.at?esc(fdate(d.at)):"—"}<br>
+    Account: <code style="font-size:11px">${esc(String(d.uid).slice(0,12))}…</code></div>`);
+  beep(1);
+}
+async function admKzFree(){
+  const c=admKzCode();
+  if(!c){toast("Pehle key ka code likhein");beep(0);return;}
+  if(!window.FB||!window.FB.kzFree){admKzMsg(`<div class="note">Net on kar ke dobara koshish karein</div>`);beep(0);return;}
+  if(!await ask(c+" — ye key azad ho jayegi aur kisi bhi naye account mein chal jayegi. Pakka?",
+    {title:"Key Azad Karein",danger:true,icon:"🔓",ok:"Haan, azad karein",no:"Rehne dein"}))return;
+  admKzMsg(`<div class="note">⏳ Azad kar rahe hain…</div>`);
+  let r=null;
+  try{r=await upRace(window.FB.kzFree(c));}catch(e){r=null;}
+  if(r===UP_TMO||!r){admKzMsg(`<div class="note">Nahi ho saka — net on kar ke dobara koshish karein</div>`);beep(0);return;}
+  alog("🔓","Key azad ki "+c);
+  admKzMsg(`<div class="note" style="background:var(--gl);color:var(--g)">✅ Azad ho gayi — ab ye key kisi bhi naye account mein chal jayegi</div>`);
+  beep(1);toast("Key azad ho gayi ✓");
 }
 async function admClrKeys(){
   if(!await ask("Saari banayi hui keys mit jayengi. Pakka?",
@@ -6782,6 +6988,13 @@ function admUpRulesTxt(){
     +"    match /rj/{uid} {\n"
     +"      allow read: if true;\n"
     +"      allow write: if request.auth != null && request.auth.uid == uid;\n"
+    +"    }\n\n"
+    +"    // aik key aik dukaan — pehla account malik ban jata hai, doosri baar\n"
+    +"    // wohi key lagane ki koshish server khud rok deta hai\n"
+    +"    match /kz/{code} {\n"
+    +"      allow read: if true;\n"
+    +"      allow create: if request.auth != null;\n"
+    +"      allow update, delete: if request.auth != null && request.auth.uid == '"+id+"';\n"
     +"    }\n"
     +"  }\n}\n";
 }
@@ -7144,8 +7357,9 @@ function admDz(){
       <label>Dobara</label><input id="amNew2" type="password" placeholder="••••••••" oninput="fClr('amNew2')">
       <div class="fe" id="e_amNew2" hidden></div>
       <button class="btn" style="margin-top:12px" onclick="admChgPass()">🔐 Badlo</button>
-      <p class="ahint" style="margin-top:10px">Emergency code hamesha chalta hai:
-        <code>${esc(ADM_EMERGENCY)}</code> — ise likh kar rakhein.</p>`)
+      <p class="ahint" style="margin-top:10px">Aap ka emergency code hamesha chalta hai —
+        wo yahan jaan boojh kar nahi likha, taake app ki file kholne wala bhi na dekh sake.
+        Apni jagah likh kar rakhein.</p>`)
   + acard("♻️ Reset",`
       <div class="agrid">
         <button class="abtn" onclick="admResetBiz()">♻️ Karobar zero</button>
@@ -8024,9 +8238,11 @@ function upBoot(){
 var refTmr=null;
 function refBoot(){
   if(refTmr)clearInterval(refTmr);
+  /* ruka hua code (net band tha) khud khol dein */
+  setTimeout(function(){try{kzWake();}catch(e){}},9000);
   setTimeout(function(){try{rjSay();}catch(e){}},12000);
   setTimeout(function(){try{refChk(0);}catch(e){}},16000);
-  refTmr=setInterval(function(){try{rjSay();}catch(e){}try{refChk(0);}catch(e){}},REF_EVERY);
+  refTmr=setInterval(function(){try{kzWake();}catch(e){}try{rjSay();}catch(e){}try{refChk(0);}catch(e){}},REF_EVERY);
 }
 
 /* ---------- start ---------- */
