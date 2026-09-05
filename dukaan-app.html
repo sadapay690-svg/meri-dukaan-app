@@ -512,6 +512,33 @@ input.good{border-color:var(--g)}
 .fbg.l{background:var(--pl);color:var(--pu)}
 .fed{border:none;background:transparent;font-size:15px;padding:4px 2px 4px 6px;cursor:pointer;
   color:var(--mut);flex-shrink:0;font-family:inherit}
+.fav.rb{background:var(--bl);color:var(--b);font-weight:900}
+/* dost bulao — shaahi neela card (code, ginti, aur saal ka hadaf) */
+.rfh{border-radius:17px;padding:17px 14px 15px;text-align:center;color:#fff;
+  background:linear-gradient(158deg,#2563eb,#1e3a8a)}
+.rfh .rfl{font-size:12px;opacity:.85;letter-spacing:.3px}
+.rfh .rfv{font-size:30px;font-weight:900;letter-spacing:3px;margin:6px 0 2px;color:#fff}
+.rfc{display:inline-block;font-size:10.5px;opacity:.9;border:1px solid rgba(255,255,255,.35);
+  border-radius:7px;padding:4px 9px;margin-top:6px;background:transparent;color:#fff;
+  font-family:inherit;font-weight:700;cursor:pointer}
+.rfs{display:block;width:100%;background:#fff;color:#1e3a8a;border:none;border-radius:11px;
+  padding:12px;font-size:13.5px;font-weight:800;margin-top:13px;font-family:inherit;cursor:pointer}
+.rfq{display:flex;gap:8px;margin-top:14px}
+.rfi{flex:1;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);
+  border-radius:11px;padding:9px 4px;font-size:10.5px;line-height:1.35}
+.rfi b{font-size:17px;display:block;margin-bottom:1px;font-weight:900}
+.rfi.hi{background:#fff;border-color:#fff;color:#1e3a8a}
+.rfi.hi b{color:#1d4ed8}
+.rfb{margin-top:14px;text-align:left}
+.rfbt{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;font-weight:700;
+  opacity:.95;margin-bottom:7px}
+.rfbb{height:7px;border-radius:99px;background:rgba(255,255,255,.22);overflow:hidden}
+.rfbb i{display:block;height:100%;background:#fff;border-radius:99px}
+.rflv{display:flex;align-items:center;justify-content:center;gap:7px;font-size:11.5px;
+  color:var(--mut);font-weight:600;line-height:1.5;margin-top:11px;text-align:center}
+.rfd{width:8px;height:8px;border-radius:50%;background:#16a34a;flex-shrink:0;
+  animation:rfd 1.6s ease-in-out infinite}
+@keyframes rfd{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
 /* inaam ka popup — bara tohfa aur girti hui khushi */
 .gwrap{position:relative;text-align:center;padding:6px 0 2px;overflow:hidden}
 .ggift{font-size:56px;line-height:1;display:inline-block;animation:gpop .62s cubic-bezier(.2,1.5,.4,1) both}
@@ -863,6 +890,16 @@ window.FB=null;window.FB_ERR="";
         const s=await D.getDocs(D.query(D.collection(fs,"rj"),D.where("code","==",String(code))));
         /* har dost ki apni pehchan bhi saath — isi se pata chalta hai ke naya kaun hai */
         const a=[];s.forEach(function(d){const o=d.data()||{};o.id=d.id;a.push(o);});return a;},
+      /* LIVE NAZAR: Dost Bulao screen khuli ho to cloud khud khabar de deta hai.
+         Bar bar poochhne (polling) ki zaroorat nahi — is liye na quota kharch hota
+         hai aur na battery. Screen band hote hi ye nazar bhi band kar di jati hai. */
+      rjWatch:(code,cb)=>{
+        try{
+          return D.onSnapshot(D.query(D.collection(fs,"rj"),D.where("code","==",String(code))),
+            s=>{const a=[];s.forEach(function(d){const o=d.data()||{};o.id=d.id;a.push(o);});
+              try{cb(a);}catch(e){}},
+            ()=>{});
+        }catch(e){return null;}},
       /* ---- AIK KEY AIK DUKAAN: kz/{code} ----
          Jo account pehle key lagata hai wohi us key ka malik ban jata hai.
          Rules mein sirf "create" ki ijazat hai — doosra account wohi key
@@ -2333,9 +2370,14 @@ function sheet(title,html,icon){
     <button class="x" onclick="closeSheet()">✕</button></div><div class="sbody">${html}</div>`;
   $("ov").classList.add("open");
   try{stopPlanTmr();}catch(e){}
+  /* doosri screen khul gayi — Dost Bulao ki live nazar band kar dein */
+  window.refScr=0;
+  try{if(!window.refKeep)refLiveOff();}catch(e){}
 }
 function closeSheet(){$("ov").classList.remove("open");try{stopPlanTmr();}catch(e){}
-  try{pCamStop();}catch(e){}}
+  try{pCamStop();}catch(e){}
+  window.refScr=0;
+  try{refLiveOff();}catch(e){}}
 $("ov").addEventListener("click",e=>{if(e.target===$("ov"))closeSheet();});
 
 /* ---------- app ka apna sawal (dialog) ----------
@@ -6796,7 +6838,7 @@ async function admRefGive(){
   beep(1);
   arefShow(`<div class="note ok">✓ <b>${esc(c)}</b> ko <b>${o.life?"♾️ Hamesha":(mo+" mahine")}</b> de diya.<br>
     Kul mahine: <b>${o.life?"♾️":o.mo}</b> · Log: <b>${o.n}</b><br>
-    Unke phone par khud-bakhud lag jayega — ya wo 🔄 Dobara Dekho daba lein.</div>`);
+    Unke phone par khud-bakhud lag jayega — app dobara kholte hi.</div>`);
   toast("Inaam de diya ✓");
 }
 
@@ -7587,32 +7629,38 @@ function openReferral(){
   const n=Math.max(0,+st.refN||0),got=Math.max(0,+st.refGot||0),life=!!st.refLife;
   const jn=Math.max(0,+st.refJoin||0);
   const untilTxt=(st.pro&&!st.proUntil)?"hamesha ke liye":(st.proUntil?dtShort(st.proUntil):"");
+  const gl=refGoal(got),pc=Math.max(0,Math.min(100,Math.round(got*100/gl)));
   sheet("Dost Bulao",`
-    <div class="prem">
-      <div class="pk">🎁</div>
-      <div class="pt">Jitne Mahine — Utne Muft</div>
-      <div class="ps">Aap ke code se koi app le aur plan khareede —<br><b>utne hi mahine aap ko bilkul muft</b></div>
+    <div class="rfh">
+      <div class="rfl">Aap ka Dost Bulao Code</div>
+      <div class="rfv">${esc(code)}</div>
+      <button class="rfc" onclick="refCopy()">📋 Copy Karein</button>
+      <button class="rfs" onclick="refShare()">📲 WhatsApp par Bhejein</button>
+      <div class="rfq">
+        <div class="rfi"><b>${jn}</b>Dost</div>
+        <div class="rfi"><b>${n}</b>Plan Liya</div>
+        <div class="rfi hi"><b>${life?"♾️":got}</b>Mahine Muft</div>
+      </div>
+      ${life?"":`<div class="rfb">
+        <div class="rfbt"><span>🏆 ${gl===12?"Aik saal":(gl/12+" saal")} muft ke qareeb</span><span>${got} / ${gl}</span></div>
+        <div class="rfbb"><i style="width:${pc}%"></i></div>
+      </div>`}
     </div>
-    <div class="hero g">
-      <div class="hl">Aap ka code</div>
-      <div class="hv">${esc(code)}</div>
-    </div>
-    <button class="btn" onclick="refShare()">📲 WhatsApp par Bhejein</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="refCopy()">📋 Code Copy Karein</button>
-
-    <div class="sec2">Aap ko kya mila</div>
+    <p class="ahint" style="margin-top:11px;text-align:center">Dost jitne mahine ka plan le —
+      <b>utne hi mahine aap ko muft</b>. Koi hadd nahi.</p>
     <div class="box" style="padding:14px">
       <div class="kv"><span>Aap ke code se app li</span><b>${jn} logon ne</b></div>
-      <div class="kv"><span>Aap ke code se plan liya</span><b>${n} logon ne</b></div>
-      <div class="kv"><span>Muft mahine mile</span><b style="color:var(--g)">${life?"♾️ Hamesha":(got?(got+" mahine"):"0")}</b></div>
+      <div class="kv"><span>Un mein se plan liya</span><b>${n} logon ne</b></div>
+      <div class="kv"><span>Muft mahine mile</span><b style="color:#1d4ed8">${life?"♾️ Hamesha":(got+" mahine")}</b></div>
+      ${untilTxt?`<div class="kv"><span>Premium chalega</span><b>${esc(life||untilTxt==="hamesha ke liye"?"Hamesha ke liye":(untilTxt+" tak"))}</b></div>`:""}
     </div>
     ${(got||life)
-      ? `<div class="note ok" style="margin-top:2px">🎁 <b>${life?"Hamesha ke liye":(got+" mahine")}</b> muft mil gaye${(untilTxt&&!life)?" — aap ka Premium <b>"+esc(untilTxt)+"</b> tak chalega":""}.</div>`
+      ? `<div class="note ok" style="margin-top:11px">🎁 <b>${life?"Hamesha ke liye":(got+" mahine")}</b> muft mil gaye${(untilTxt&&!life)?" — aap ka Premium <b>"+esc(untilTxt)+"</b> tak chalega":""}.</div>`
       : (jn
-        ? `<div class="note ok" style="margin-top:2px">🎉 <b>${jn} dost</b> aap ke code se aa gaye. Jab wo plan lenge, utne hi mahine aap ko khud-bakhud mil jayenge.</div>`
-        : `<div class="note" style="margin-top:2px;background:var(--pl);color:var(--pu)">Abhi koi nahi. Apna code doston ko bhejein — pehla dost hi aap ko muft mahine dila dega.</div>`)}
+        ? `<div class="note ok" style="margin-top:11px">🎉 <b>${jn} dost</b> aap ke code se aa gaye. Jab wo plan lenge, utne hi mahine aap ko khud-bakhud mil jayenge.</div>`
+        : `<div class="note" style="margin-top:11px;background:var(--bl);color:#1e3a8a">Apna code doston ko bhejein — pehla dost hi aap ko muft mahine dila dega.</div>`)}
     ${refListHtml()}
-    <button class="btn ghost" style="margin-top:11px" onclick="refChk(1)">🔄 Dobara Dekho</button>
+    <div class="rflv" id="refLive"><span class="rfd"></span> Khud dekhta rehta hai…</div>
 
     <div class="sec2">Kaise chalta hai</div>
     <div class="box" style="padding:6px 14px">
@@ -7621,14 +7669,22 @@ function openReferral(){
       ${refStep(3,"Wo 6 mahine ka plan leta hai — to <b>aap ko bhi 6 mahine muft</b> mil jate hain.")}
       ${refStep(4,"Aap ka Premium khud-bakhud barh jata hai. Kuch karna nahi parta.")}
     </div>
-    <p class="ahint" style="margin-top:12px">Jitne dost lagayenge, utne mahine jama hote rahenge — koi hadd nahi.</p>
     ${st.refCode
-      ? `<p class="ahint">Aap ko bataya tha: <b>${esc(st.refCode)}</b></p>`
+      ? `<p class="ahint" style="margin-top:12px">Aap ko bataya tha: <b>${esc(st.refCode)}</b></p>`
       : `<div class="sec2">Aap ko kis ne bataya?</div>
          <p class="ahint">Kisi dost ne aap ko ye app batayi thi? Unka code yahan likh dein — plan lete waqt unhein bhi muft mahine mil jayenge.</p>
          <input id="refWho" placeholder="Unka code" style="text-transform:uppercase;text-align:center;letter-spacing:2px">
          <button class="btn ghost" style="margin-top:10px" onclick="refSetWho()">💾 Save Karein</button>`}
     <button class="btn ghost" style="margin-top:10px" onclick="openSettings()">Waapis</button>`,"🎁");
+  /* screen khulte hi cloud par nazar lag jati hai — naya dost aaye to foran pata chal jayega */
+  window.refScr=1;
+  try{refLive();}catch(e){}
+}
+/* saal ka hadaf: 12 mahine, wo poore ho jayen to 24, phir 36… */
+function refGoal(got){
+  const g=Math.max(0,+got||0);let t=12;
+  while(g>=t&&t<1200)t+=12;
+  return t;
 }
 function refStep(n,t){
   return `<div class="rstep"><div class="rn">${n}</div><div>${t}</div></div>`;
@@ -7845,13 +7901,15 @@ function refListHtml(){
     k++;
     const g=refPlanTag(o.m,o.l),nm=refMyNm(o.i)||String(o.n||"").trim();
     if(!nm)noName=1;
-    h+=`<div class="frow"><div class="fav">🏪</div><div class="fmid">
-        <div class="fnm">${esc(nm||("Dost "+k))}</div>
+    const sh=esc(nm||("Dost "+k)),lt=esc(String(sh).trim().charAt(0).toUpperCase()||"D");
+    h+=`<div class="frow"><div class="fav rb">${lt}</div><div class="fmid">
+        <div class="fnm">${sh}</div>
         <div class="fdt">aaya: ${esc(o.a?refDate(o.a):"—")}</div>
       </div><span class="fbg ${g.c}">${g.t}</span>
       <button class="fed" onclick="refName('${esc(String(o.i))}')">✏️</button></div>`;
   });
-  return `<div class="sec2">Aap ke Dost (${L.length})</div>
+  return `<div class="sec2">Aap ke Dost (${L.length})
+      <span style="float:right;text-transform:none;letter-spacing:0;color:#1d4ed8">✏️ naam likhein</span></div>
     <div class="box" style="padding:6px 14px">${h}</div>`
     +(noName?`<p class="ahint" style="margin-top:8px">Jis dost ka naam khali hai, us ki row par ✏️ dabayein aur us ka naam khud likh dein — hamesha yaad rahega.</p>`
             :`<p class="ahint" style="margin-top:8px">Kisi bhi dost ka naam badalna ho to us ki row par ✏️ dabayein.</p>`);
@@ -7879,6 +7937,16 @@ async function refChk(manual){
   }
   refBusy=0;
   if(!ok){if(manual){beep(0);toast("Cloud se jawab nahi mila — net dekhein");}return 0;}
+  return refApply(L,okj,d,manual,0);
+}
+/* ============================================================
+   Cloud se aayi khabar ka hisaab. Dono raaste yahin aate hain —
+   chahe app ne khud poochha ho (refChk), ya cloud ne live khabar
+   di ho (refLive). Is se dono jagah ka hisaab bilkul aik jaisa
+   rehta hai aur inaam dohra kabhi nahi lagta.
+   ============================================================ */
+function refApply(L,okj,d,manual,live){
+  const st=db.settings;
   st.refChkAt=Date.now();
   /* doston ki nishaniyon ka hisaab */
   let jn=0,pd=0,jmo=0,jlife=0;
@@ -7898,6 +7966,9 @@ async function refChk(manual){
     if(st.refSeed)ev=refDiff(rows,Array.isArray(st.refList)?st.refList:[]);
     st.refList=rows;st.refSeed=1;
   }
+  /* Dost Bulao screen khuli ho aur usi waqt inaam aa jaye — screen band kar ke
+     khushi wala popup dikhaya jata hai (warna khuli screen ki wajah se ruk jata). */
+  if(live&&ev.length){try{beep(1);}catch(e){}try{closeSheet();}catch(e){}}
   /* ginti sirf barhti hai — aik jagah se jawab na aaye to purani ginti mit na jaye */
   if(okj)st.refJoin=Math.max(0,+st.refJoin||0,jn);
   st.refN=Math.max(0,+st.refN||0,an,pd);
@@ -7934,6 +8005,85 @@ async function refChk(manual){
     :(jn?(jn+" dost aa gaye — jab wo plan lenge to mahine khud lag jayenge")
         :"Abhi kisi ne aap ke code se plan nahi liya"));
   return 0;
+}
+/* ============================================================
+   LIVE NAZAR — "khud dekhta rehta hai"
+   Har 1-2 second poochhna theek nahi hota (rozana hazaron sawal,
+   battery aur data ka zaya). Is liye cloud se kaha jata hai:
+   "jab kuch naya ho, khud bata dena". Naya dost aaye ya wo plan
+   khareede to foran (aik second se pehle) pata chal jata hai.
+   Ye nazar sirf Dost Bulao screen khuli hone tak lagti hai.
+   ============================================================ */
+var refUnsub=null,refLiveOn=0;
+window.refKeep=0;
+window.refScr=0;               /* 1 = is waqt Dost Bulao ki screen hi khuli hai */
+function refSig(){
+  const L=Array.isArray(db.settings.refList)?db.settings.refList:[];
+  return L.map(function(o){return String(o.i)+":"+(+o.m||0)+":"+(o.l?1:0);}).join(",");
+}
+function refLive(){
+  if(refUnsub){refLiveUI();return refLiveOn;}   /* pehle se lagi hui hai */
+  const st=db.settings;
+  refLiveOn=0;
+  if(st.demo){refLiveUI();return 0;}          /* nakli demo data ke liye cloud nahi */
+  if(!window.FB||!window.FB.rjWatch){refLiveUI();refLiveWait();return 0;}
+  try{if(!window.FB.user||!window.FB.user()){refLiveUI();refLiveWait();return 0;}}
+  catch(e){refLiveUI();refLiveWait();return 0;}
+  try{
+    refUnsub=window.FB.rjWatch(myRefCode(),function(L){
+      if(!L)return;
+      const before=refSig();
+      try{refApply(L,1,null,0,1);}catch(e){}
+      /* list badli ho to khuli screen bhi foran nayi kar do */
+      if(refSig()!==before)refReDraw();
+    });
+  }catch(e){refUnsub=null;}
+  refLiveOn=refUnsub?1:0;
+  refLiveUI();
+  if(!refLiveOn)refLiveWait();
+  return refLiveOn;
+}
+/* cloud ka rabta abhi tayyar na ho (app abhi khuli hi hai, ya net aa raha hai) to
+   thori dair baad khud dobara koshish — screen khuli rahe to bina poochhe lag jati hai.
+   Ye sirf app ke andar ki koshish hai, cloud par koi sawal nahi jata. */
+var refReTmr=null,refReTry=0;
+function refLiveWait(){
+  if(refReTmr||refUnsub)return 0;
+  if(refReTry>=5)return 0;
+  refReTry++;
+  refReTmr=setTimeout(function(){
+    refReTmr=null;
+    if(!window.refScr||refUnsub)return;        /* screen band ho gayi, ya lag chuki hai */
+    refLive();
+  },3000);
+  return 1;
+}
+function refLiveOff(){
+  if(refUnsub){try{refUnsub();}catch(e){}}
+  if(refReTmr){try{clearTimeout(refReTmr);}catch(e){}}
+  refUnsub=null;refLiveOn=0;refReTmr=null;refReTry=0;
+}
+function refLiveUI(){
+  let e=null;try{e=$("refLive");}catch(x){}
+  if(!e)return 0;
+  e.innerHTML=refLiveOn
+    ? `<span class="rfd"></span> Khud dekhta rehta hai — naya dost aaye to foran pata chal jayega`
+    : `App kholte hi khud dekh leta hai — kuch dabane ki zaroorat nahi`;
+  return 1;
+}
+function refReDraw(){
+  /* screen khuli ho to nayi list foran dikha do. Magar agar wo kisi ka code
+     likh raha ho to us ka likha hua mitana theek nahi — us waqt intezar. */
+  try{
+    if(!window.refScr)return 0;               /* koi doosri screen khuli hai */
+    if(!$("ov")||!$("ov").classList.contains("open"))return 0;
+    const w=$("refWho");
+    if(w&&String(w.value||"").trim())return 0;
+    /* screen dobara banti hai — magar live nazar lagi hi rehni chahiye */
+    window.refKeep=1;
+    try{openReferral();}finally{window.refKeep=0;}
+    return 1;
+  }catch(e){window.refKeep=0;return 0;}
 }
 function openInstall(){
   sheet("Download / Install",`
