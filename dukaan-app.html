@@ -1007,8 +1007,8 @@ window.FB=null;window.FB_ERR="";
 /* ↓ Ye nishan sirf "live update" ke liye hai. Har nayi file publish karne se
    pehle isay 1 barha dein — app khud isi se pehchanti hai ke naya build aaya.
    Neeche APP_BUILD bhi wohi number rakhein.                              */
-/*MERI-DUKAAN-BUILD:10*/
-const APP_BUILD=10;
+/*MERI-DUKAAN-BUILD:11*/
+const APP_BUILD=11;
 const KEY="meriDukaan_v1";
 const DEF={settings:{storeName:"Meri Dukaan",ownerName:"",phone:"",email:"",theme:"light",
     country:"PK",curSym:"Rs",curCode:"PKR",dial:"92",refCode:"",
@@ -5186,9 +5186,13 @@ function openUsersLite(){
       <span class="uar">›</span></button>`).join("")}
     <button class="btn" style="margin-top:13px" onclick="admUser()">➕ Naya Mulazim</button>`,"👥");
 }
+/* Settings — ab chhota hub: sirf groups, tap se alag screen khulti hai */
+let setGrp="";
+function setRefresh(){setGrp?openSetGrp(setGrp):openSettings();}
 function openSettings(){
   const st=db.settings;
   if(staffOn()){staffSettings();return;}
+  setGrp="";
   sheet("Settings",`
     <div class="prof">
       <div class="pav">${ini(st.storeName||"Meri Dukaan")}</div>
@@ -5208,70 +5212,100 @@ function openSettings(){
       <div class="stat b" style="padding:11px"><div class="st">Sales</div><div class="sv">${db.sales.length}</div></div>
       <div class="stat o" style="padding:11px"><div class="st">Clients</div><div class="sv">${db.clients.length}</div></div>
     </div>
-    <div class="sec"><h3>☁️ DATA SYNC</h3></div>
+    <div class="sec"><h3>SETTINGS</h3></div>
     <div class="slist">
-      ${srow("☁️","bl","Cloud Backup","<span id=\"stCloud\">"+(cloudSDK()?(cloudOn()?(esc(cloudMail())+" · "+(cloudAt()?("last "+dtShort(cloudAt())):"upload baqi")):"Off — online backup on karein"):"Net nahi mila — sirf is phone mein")+"</span>","openCloud()")}
-      ${srow("🔄","","Abhi Sync Karo","Data mahfooz karein","syncNow()")}
-      ${srow("⬇️","","Data Export","Backup file download karein","doBackup()")}
-      ${srow("⬆️","ol","Import Backup","Purani backup se restore","openImport()")}
-    </div>
-    <div class="sec"><h3>⚙️ APP SETTINGS</h3></div>
-    <div class="slist">
-      ${swrow(st.theme==="dark"?"🌙":"☀️","ol",st.theme==="dark"?"Dark Mode":"Light Mode","Roshni ya andhera",st.theme==="dark","toggleTheme();openSettings()")}
-      ${srow("🌐","bl","Zaban (Language)","App ki zaban","openZaban()",LANGS[curLang()]+" ›")}
-      ${srow("🌍","gr","Mulk & Currency","Paise ka nishaan aur phone code","openCurrency()",curCode()+" ›")}
-      ${swrow("⚠️","ol","Low Stock Alerts","Stock kam ho to batayein",!!st.lowAlert,"toggleSet('lowAlert')")}
-      ${swrow("🔔","","Sound Effects","Sale/scan par beep",!!st.sound,"toggleSet('sound')")}
-      ${srow("📜","","Activity Log","Kya kya hua — record","openLog()")}
-    </div>
-    <div class="sec"><h3>⭐ PREMIUM</h3></div>
-    <div class="box">
-      ${srow("⭐","pu",paidOn()?"Premium Active":(trialLeft()>0?("Trial — "+trialLeft()+" din baqi"):"Premium Unlock Karein"),paidOn()?planLine():planTease(),"openPremium()",planName())}
-      ${srow("🚀","pu","Premium Tools",featCount()+" tools — hisaab, taqaza, analytics","openProTools()")}
-      ${PRO_FEATS.filter(f=>f[3]&&pfeatOn(f[4])).map(f=>srow(f[0],"pu",f[1],f[2],f[3],isPro()?"›":"🔒")).join("")}
-    </div>
-    <div class="sec"><h3>🎁 FREE TOOLS</h3></div>
-    <div class="box">
-      ${FREE_TOOLS.map(f=>srow(f[0],"gr",f[1],f[2],f[3])).join("")}
-    </div>
-    <div class="sec"><h3>🧰 BUSINESS TOOLS</h3></div>
-    <div class="slist">
-      ${srow("🏪","ol","Vendor Purchasing","Kharidari, vendor baqi, stock barhao","closeSheet();openPurchasing()")}
-      ${srow("🖨","bl","Printer Setup","Thermal receipt ka size","openPrinter()",(st.printWidth||"58")+"mm ›")}
-      ${srow("🎁","gr","Dost Bulao — Muft Mahine","Jitne mahine ka plan wo le, utne aap ko muft","openReferral()")}
-      ${srow("▶️","rl","Video Tutorials","Kaise chalayein — seekhein","closeSheet();openTutorial()")}
-      ${srow("⬇️","bl","Download Software","Phone par app ki tarah lagayein","openInstall()")}
-    </div>
-    <div class="sec"><h3>👥 STAFF / USERS</h3></div>
-    <div class="slist">
-      ${srow("👤","gr","Users aur Ijazat","Mulazim add karein, ijazat set karein","openUsersLite()",users().length+" ›")}
-      ${swrow("🆕","ol","Naya Account Banane Ki Ijazat","Login screen par 'Naya Account' ka button dikhega — naya account isi dukaan ka hisaab dekhega",db.settings.openSignup!==false,"setOpenSignup("+(db.settings.openSignup!==false?"false":"true")+")")}
-    </div>
-    <div class="sec"><h3>🆘 SUPPORT</h3></div>
-    <div class="slist">
-      ${srow("🙋","pu","Madad chahiye","Sawal ya masla seedha banane wale ko bhejein","openMadad()")}
-      ${srow("📲","","WhatsApp Support","Madad ke liye rabta karein","openWaSupport()")}
-      ${srow("❓","bl","Madad (Help)","Aam sawalaat ke jawab","openHelp()")}
-    </div>
-    <div class="dz">⚠️ DANGER ZONE</div>
-    <div class="slist">
-      ${srow("♻️","rl","Business Data Reset","Sale, profit, purchases zero — udhaar aur products mahfooz · 🔒 password lagega","resetBusiness()")}
-      ${srow("🗑","rl","Saara Data Delete","Sab kuch mit jayega — Premium aur login mahfooz · 🔒 password lagega","wipe()")}
-      ${srow("🧪","ol",db.settings.demo?"Demo Data Hataein":"Demo Data Bharein",db.settings.demo?"Abhi nakli demo data chal raha hai — cloud upload band hai":"Test ke liye nakli data · 🔒 password lagega",db.settings.demo?"wipe()":"loadDemo()")}
-    </div>
-    <div class="sec"><h3>ℹ️ APP INFO</h3></div>
-    <div class="box" style="padding:14px">
-      <div class="kv" onclick="admTap()" style="cursor:pointer"><span>Version</span><b>${esc(admBrand().ver||"1.2.0")}</b></div>
-      <div class="kv"><span>Developed by</span><b>${esc(admBrand().dev||"BITHUB Solutions")}</b></div>
-      <div class="kv"><span>Secure &amp; Offline</span><b style="color:var(--g)">✓ Haan</b></div>
-      <div class="kv"><span>Data</span><b>${db.sales.length} sales · ${(db.purchases||[]).length} purchases</b></div>
+      ${srow("☁️","bl","Data aur Backup","Cloud, sync, backup file","openSetGrp('data')")}
+      ${srow("⚙️","ol","App ki Setting","Zaban, mulk, awaz, log","openSetGrp('app')")}
+      ${srow("⭐","pu","Premium aur Muft Tools","Plan, tools, offers","openSetGrp('pro')",planName())}
+      ${srow("🧰","gr","Dukaan Ke Tools","Vendor, printer, Dost Bulao","openSetGrp('tools')")}
+      ${srow("👥","gr","Users aur Ijazat","Mulazim add karein","openSetGrp('staff')",users().length+" ›")}
+      ${srow("🆘","pu","Madad","Sawal, masla, rabta","openSetGrp('help')")}
+      ${srow("⚠️","rl","Khatray Wale","Reset, delete, demo","openSetGrp('dz')")}
+      ${srow("ℹ️","","App Ki Maloomat","Version, data, banane wala","openSetGrp('info')")}
     </div>
     <button class="btn ghost" style="margin-top:12px" onclick="logout()">🚪 Logout${curUser()?" ("+esc(curUser().uname)+")":""}</button>
     <button class="btn ghost" style="margin-top:9px" onclick="baharJao()">🔒 App Band Karein</button>
     <p style="font-size:12px;color:var(--mut);text-align:center;margin-top:14px">
       Saara data isi phone/browser mein save hai — internet ki zaroorat nahi.</p>`,"⚙️");
 }
-function toggleSet(k){db.settings[k]=!db.settings[k];saveDB();openSettings();toast(db.settings[k]?"On ✓":"Off");}
+/* har group ki apni screen — upar wali hub se khulti hai */
+function openSetGrp(k){
+  setGrp=String(k||"");
+  const T={data:["☁️","Data aur Backup"],app:["⚙️","App ki Setting"],
+    pro:["⭐","Premium aur Muft Tools"],tools:["🧰","Dukaan Ke Tools"],
+    staff:["👥","Users aur Ijazat"],help:["🆘","Madad"],dz:["⚠️","Khatray Wale"],
+    info:["ℹ️","App Ki Maloomat"]}[setGrp]||["⚙️","Settings"];
+  const st=db.settings;
+  const B={
+    data:()=>`
+      <div class="slist">
+        ${srow("☁️","bl","Cloud Backup","<span id=\"stCloud\">"+(cloudSDK()?(cloudOn()?(esc(cloudMail())+" · "+(cloudAt()?("last "+dtShort(cloudAt())):"upload baqi")):"Off — online backup on karein"):"Net nahi mila — sirf is phone mein")+"</span>","openCloud()")}
+        ${srow("🔄","","Abhi Sync Karo","Data mahfooz karein","syncNow()")}
+        ${srow("⬇️","","Data Export","Backup file download karein","doBackup()")}
+        ${srow("⬆️","ol","Import Backup","Purani backup se restore","openImport()")}
+      </div>`,
+    app:()=>`
+      <div class="slist">
+        ${swrow(st.theme==="dark"?"🌙":"☀️","ol",st.theme==="dark"?"Dark Mode":"Light Mode","Roshni ya andhera",st.theme==="dark","toggleTheme();setRefresh()")}
+        ${srow("🌐","bl","Zaban (Language)","App ki zaban","openZaban()",LANGS[curLang()]+" ›")}
+        ${srow("🌍","gr","Mulk & Currency","Paise ka nishaan aur phone code","openCurrency()",curCode()+" ›")}
+        ${swrow("⚠️","ol","Low Stock Alerts","Stock kam ho to batayein",!!st.lowAlert,"toggleSet('lowAlert')")}
+        ${swrow("🔔","","Sound Effects","Sale/scan par beep",!!st.sound,"toggleSet('sound')")}
+        ${srow("📜","","Activity Log","Kya kya hua — record","openLog()")}
+      </div>`,
+    pro:()=>`
+      <div class="sec"><h3>⭐ PREMIUM</h3></div>
+      <div class="box">
+        ${srow("⭐","pu",paidOn()?"Premium Active":(trialLeft()>0?("Trial — "+trialLeft()+" din baqi"):"Premium Unlock Karein"),paidOn()?planLine():planTease(),"openPremium()",planName())}
+        ${srow("🚀","pu","Premium Tools",featCount()+" tools — hisaab, taqaza, analytics","openProTools()")}
+        ${PRO_FEATS.filter(f=>f[3]&&pfeatOn(f[4])).map(f=>srow(f[0],"pu",f[1],f[2],f[3],isPro()?"›":"🔒")).join("")}
+      </div>
+      <div class="sec"><h3>🎁 FREE TOOLS</h3></div>
+      <div class="box">
+        ${FREE_TOOLS.map(f=>srow(f[0],"gr",f[1],f[2],f[3])).join("")}
+      </div>`,
+    tools:()=>`
+      <div class="slist">
+        ${srow("🏪","ol","Vendor Purchasing","Kharidari, vendor baqi, stock barhao","closeSheet();openPurchasing()")}
+        ${srow("🖨","bl","Printer Setup","Thermal receipt ka size","openPrinter()",(st.printWidth||"58")+"mm ›")}
+        ${srow("🎁","gr","Dost Bulao — Muft Mahine","Jitne mahine ka plan wo le, utne aap ko muft","openReferral()")}
+        ${srow("▶️","rl","Video Tutorials","Kaise chalayein — seekhein","closeSheet();openTutorial()")}
+        ${srow("⬇️","bl","Download Software","Phone par app ki tarah lagayein","openInstall()")}
+      </div>`,
+    staff:()=>`
+      <div class="slist">
+        ${srow("👤","gr","Users aur Ijazat","Mulazim add karein, ijazat set karein","openUsersLite()",users().length+" ›")}
+        ${swrow("🆕","ol","Naya Account Banane Ki Ijazat","Login screen par 'Naya Account' ka button dikhega — naya account isi dukaan ka hisaab dekhega",db.settings.openSignup!==false,"setOpenSignup("+(db.settings.openSignup!==false?"false":"true")+")")}
+      </div>`,
+    help:()=>`
+      <div class="slist">
+        ${srow("🙋","pu","Madad chahiye","Sawal ya masla seedha banane wale ko bhejein","openMadad()")}
+        ${srow("📲","","WhatsApp Support","Madad ke liye rabta karein","openWaSupport()")}
+        ${srow("❓","bl","Madad (Help)","Aam sawalaat ke jawab","openHelp()")}
+      </div>`,
+    dz:()=>`
+      <div class="dz">⚠️ Ye kaam soch kar karein</div>
+      <div class="slist">
+        ${srow("♻️","rl","Business Data Reset","Sale, profit, purchases zero — udhaar aur products mahfooz · 🔒 password lagega","resetBusiness()")}
+        ${srow("🗑","rl","Saara Data Delete","Sab kuch mit jayega — Premium aur login mahfooz · 🔒 password lagega","wipe()")}
+        ${srow("🧪","ol",db.settings.demo?"Demo Data Hataein":"Demo Data Bharein",db.settings.demo?"Abhi nakli demo data chal raha hai — cloud upload band hai":"Test ke liye nakli data · 🔒 password lagega",db.settings.demo?"wipe()":"loadDemo()")}
+      </div>`,
+    info:()=>`
+      <div class="box" style="padding:14px">
+        <div class="kv" onclick="admTap()" style="cursor:pointer"><span>Version</span><b>${esc(admBrand().ver||"1.2.0")}</b></div>
+        <div class="kv"><span>Developed by</span><b>${esc(admBrand().dev||"BITHUB Solutions")}</b></div>
+        <div class="kv"><span>Secure &amp; Offline</span><b style="color:var(--g)">✓ Haan</b></div>
+        <div class="kv"><span>Data</span><b>${db.sales.length} sales · ${(db.purchases||[]).length} purchases</b></div>
+      </div>`
+  }[setGrp]||(()=>"");
+
+  sheet(T[1],`
+    <div class="slist" style="margin:-4px 0 10px">
+      ${srow("←","","Waapis","Saari settings","openSettings()")}
+    </div>
+    ${B()}`,"⚙️");
+}
+function toggleSet(k){db.settings[k]=!db.settings[k];saveDB();setRefresh();toast(db.settings[k]?"On ✓":"Off");}
 function openProfile(){
   const st=db.settings;
   sheet("Profile / Dukaan",`
